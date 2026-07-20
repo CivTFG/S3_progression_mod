@@ -120,6 +120,27 @@ repositories {
     // flatDir {
     //     dir 'libs'
     // }
+    
+    maven {
+        name = "KubeJS"
+        url = "https://maven.saps.dev/minecraft"
+        // Fallback if the above is stale: "https://maven.latvian.dev/releases"
+    }
+    maven {
+        name = "FTB / feed-the-beast"
+        url = "https://maven.saps.dev/minecraft"
+    }
+    
+    maven {
+        // Architectury API
+        url = "https://maven.architectury.dev"
+        content { includeGroup "dev.architectury" }
+    }
+    maven {
+        // KubeJS + Rhino
+        url = "https://maven.saps.dev/minecraft"
+        content { includeGroup "dev.latvian.mods" }
+    }
 }
 
 dependencies {
@@ -144,6 +165,12 @@ dependencies {
     // For more info:
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
+    
+    implementation fg.deobf(files("libs/kubejs-forge-2001.6.5-build.26.jar"))
+    implementation fg.deobf(files("libs/rhino-forge-2001.2.3-build.10.jar"))
+    implementation fg.deobf(files("libs/architectury-forge-9.2.14.jar")) // match the filename you actually download
+
+    implementation fg.deobf(files("libs/ftb-library-forge-2001.2.13.jar"))
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
