@@ -1,6 +1,7 @@
 package com.civtfg.progression;
 
 import com.civtfg.progression.client.LaboratoryScreen;
+import com.civtfg.progression.recipe.ModRecipeTypes;
 import com.civtfg.progression.registry.ModBlockEntities;
 import com.civtfg.progression.registry.ModBlocks;
 import com.civtfg.progression.registry.ModItems;
@@ -31,6 +32,8 @@ public class ProgressionMod {
         ModItems.ITEMS.register(modEventBus);
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
         ModMenuTypes.MENUS.register(modEventBus);
+        ModRecipeTypes.RECIPE_TYPES.register(modEventBus);
+        ModRecipeTypes.RECIPE_SERIALIZERS.register(modEventBus);
 
         // FMLClientSetupEvent fires after every mod's constructor has run and all
         // registries are populated - RegistryObject#get() is not safe to call
