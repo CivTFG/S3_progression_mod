@@ -4,6 +4,7 @@ import com.civtfg.progression.client.LaboratoryScreen;
 import com.civtfg.progression.recipe.ModRecipeTypes;
 import com.civtfg.progression.registry.ModBlockEntities;
 import com.civtfg.progression.registry.ModBlocks;
+import com.civtfg.progression.registry.ModCreativeModeTabs;
 import com.civtfg.progression.registry.ModItems;
 import com.civtfg.progression.registry.ModMenuTypes;
 import com.civtfg.progression.registry.ModScienceItems;
@@ -38,6 +39,7 @@ public class ProgressionMod {
         ModMenuTypes.MENUS.register(modEventBus);
         ModRecipeTypes.RECIPE_TYPES.register(modEventBus);
         ModRecipeTypes.RECIPE_SERIALIZERS.register(modEventBus);
+        ModCreativeModeTabs.CREATIVE_MODE_TABS.register(modEventBus);
 
         // FMLClientSetupEvent fires after every mod's constructor has run and all
         // registries are populated - RegistryObject#get() is not safe to call
@@ -53,9 +55,11 @@ public class ProgressionMod {
 
     private void buildCreativeModeTabContents(final BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
+            LOGGER.info("[s3_progression_mod] BuildCreativeModeTabContentsEvent fired for FUNCTIONAL_BLOCKS, adding laboratory");
             event.accept(ModItems.LABORATORY_ITEM);
         }
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
+            LOGGER.info("[s3_progression_mod] BuildCreativeModeTabContentsEvent fired for INGREDIENTS, adding 45 science items");
             for (ModScienceItems.Age age : ModScienceItems.Age.values()) {
                 for (ModScienceItems.Category category : ModScienceItems.Category.values()) {
                     event.accept(ModScienceItems.get(age, category));

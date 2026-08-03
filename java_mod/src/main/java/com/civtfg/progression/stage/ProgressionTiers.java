@@ -92,16 +92,21 @@ public final class ProgressionTiers {
     }
 
     /**
-     * @return the display name of the highest-index tier {@code player} currently holds
-     * the stage for, or {@code null} if they don't have any of the known tier stages yet.
+     * Bronze Age is the implicit baseline every team starts in - nobody needs to craft
+     * anything to "be in" Bronze Age. Completing a tier's research (crossing its
+     * threshold, holding its stageId) is what moves a team INTO the next tier, so
+     * holding TIERS[i]'s stage means the team is now actually in TIERS[i + 1].
+     *
+     * @return the display name of whichever tier {@code player}'s team is currently in,
+     * or "Everything" once the last tier's research is complete.
      */
     public static String getCurrentTierName(Player player) {
         for (int i = TIERS.length - 1; i >= 0; i--) {
             if (GameStageHelper.hasStage(player, TIERS[i].stageId())) {
-                return TIERS[i].displayName();
+                return i + 1 < TIERS.length ? TIERS[i + 1].displayName() : "Everything";
             }
         }
-        return null;
+        return TIERS[0].displayName();
     }
 
     private ProgressionTiers() {
