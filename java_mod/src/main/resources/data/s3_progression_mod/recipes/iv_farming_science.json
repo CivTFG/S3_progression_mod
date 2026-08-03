@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    { "item": "tfg:iv_universal_circuit" },
+    { "item": "tfg:iv_universal_circuit" },
+    { "item": "minecraft:wheat" },
+    { "item": "minecraft:paper" }
+  ],
+  "result": {
+    "item": "s3_progression_mod:iv_farming_science",
+    "count": 1
+  }
+}

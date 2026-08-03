@@ -171,6 +171,8 @@ dependencies {
     implementation fg.deobf(files("libs/architectury-forge-9.2.14.jar")) // match the filename you actually download
 
     implementation fg.deobf(files("libs/ftb-library-forge-2001.2.13.jar"))
+    implementation fg.deobf(files("libs/ftb-teams-forge-2001.3.2.jar"))
+    implementation fg.deobf(files("libs/ftb-chunks-forge-2001.3.8.jar"))
     implementation fg.deobf(files("libs/GameStages-Forge-1.20.1-15.0.2.jar"))
 }
 

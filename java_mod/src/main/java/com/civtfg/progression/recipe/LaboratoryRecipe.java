@@ -19,7 +19,10 @@ import java.util.List;
 /**
  * A plain Forge recipe (no KubeJS involvement) - matches an unordered set of up
  * to 5 ingredients (shapeless) against the Laboratory's 5 slots, has no output
- * item, and carries one extra field: "value", read straight off the recipe json.
+ * item, and carries two extra fields read straight off the recipe json: "tier"
+ * (which progression tier this recipe's "value" counts toward - e.g. "LV", "MV",
+ * "HV" - tiers are independent tracks, a tier's counter only moves via its own
+ * recipes) and "value" (how much that tier's counter advances on a successful craft).
  *
  * Future recipes are added purely as datapack json files under
  * data/&lt;namespace&gt;/recipes/, no Java or KubeJS changes required, e.g.:
@@ -33,6 +36,7 @@ import java.util.List;
  *     { "item": "minecraft:stick" },
  *     { "item": "minecraft:stick" }
  *   ],
+ *   "tier": "LV",
  *   "value": 1
  * }
  */
@@ -40,12 +44,18 @@ public class LaboratoryRecipe implements Recipe<Container> {
 
     private final ResourceLocation id;
     private final NonNullList<Ingredient> ingredients;
+    private final String tier;
     private final int value;
 
-    public LaboratoryRecipe(ResourceLocation id, NonNullList<Ingredient> ingredients, int value) {
+    public LaboratoryRecipe(ResourceLocation id, NonNullList<Ingredient> ingredients, String tier, int value) {
         this.id = id;
         this.ingredients = ingredients;
+        this.tier = tier;
         this.value = value;
+    }
+
+    public String getTier() {
+        return tier;
     }
 
     public int getValue() {
@@ -133,9 +143,10 @@ public class LaboratoryRecipe implements Recipe<Container> {
                 }
             }
 
+            String tier = net.minecraft.util.GsonHelper.getAsString(json, "tier");
             int value = net.minecraft.util.GsonHelper.getAsInt(json, "value", 1);
 
-            return new LaboratoryRecipe(id, ingredients, value);
+            return new LaboratoryRecipe(id, ingredients, tier, value);
         }
 
         @Override
@@ -145,8 +156,9 @@ public class LaboratoryRecipe implements Recipe<Container> {
             for (int i = 0; i < count; i++) {
                 ingredients.set(i, Ingredient.fromNetwork(buffer));
             }
+            String tier = buffer.readUtf();
             int value = buffer.readVarInt();
-            return new LaboratoryRecipe(id, ingredients, value);
+            return new LaboratoryRecipe(id, ingredients, tier, value);
         }
 
         @Override
@@ -155,6 +167,7 @@ public class LaboratoryRecipe implements Recipe<Container> {
             for (Ingredient ingredient : recipe.ingredients) {
                 ingredient.toNetwork(buffer);
             }
+            buffer.writeUtf(recipe.tier);
             buffer.writeVarInt(recipe.value);
         }
     }

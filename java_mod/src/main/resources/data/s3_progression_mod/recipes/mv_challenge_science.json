@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    { "item": "tfg:mv_universal_circuit" },
+    { "item": "tfg:mv_universal_circuit" },
+    { "item": "minecraft:gold_nugget" },
+    { "item": "minecraft:paper" }
+  ],
+  "result": {
+    "item": "s3_progression_mod:mv_challenge_science",
+    "count": 1
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    { "item": "tfc:metal/ingot/wrought_iron" },
+    { "item": "tfc:metal/ingot/wrought_iron" },
+    { "item": "minecraft:compass" },
+    { "item": "minecraft:paper" }
+  ],
+  "result": {
+    "item": "s3_progression_mod:iron_exploration_science",
+    "count": 1
+  }
+}

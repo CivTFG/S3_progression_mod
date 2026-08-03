@@ -1,0 +1,6 @@
+﻿{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "s3_progression_mod:item/iv_mining_science"
+  }
+}

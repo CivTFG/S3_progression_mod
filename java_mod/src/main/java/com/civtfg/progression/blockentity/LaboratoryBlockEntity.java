@@ -5,7 +5,9 @@ import com.civtfg.progression.menu.LaboratoryMenu;
 import com.civtfg.progression.recipe.LaboratoryRecipe;
 import com.civtfg.progression.recipe.ModRecipeTypes;
 import com.civtfg.progression.registry.ModBlockEntities;
+import com.civtfg.progression.stage.ProgressionTiers;
 import dev.ftb.mods.ftblibrary.math.ChunkDimPos;
+import dev.ftb.mods.ftbteams.api.Team;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
@@ -52,6 +54,8 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
     private int progress = 0;
     @Nullable
     private ResourceLocation currentRecipeId = null;
+    @Nullable
+    private String currentTier = null;
     private int currentValue = 0;
 
     private final ContainerData data = new ContainerData() {
@@ -101,6 +105,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
             if (be.progress != 0 || be.currentRecipeId != null) {
                 be.progress = 0;
                 be.currentRecipeId = null;
+                be.currentTier = null;
                 be.currentValue = 0;
                 dirty = true;
             }
@@ -113,6 +118,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
         LaboratoryRecipe recipe = match.get();
         if (!recipe.getId().equals(be.currentRecipeId)) {
             be.currentRecipeId = recipe.getId();
+            be.currentTier = recipe.getTier();
             be.currentValue = recipe.getValue();
             be.progress = 0;
         }
@@ -127,12 +133,27 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
     private Optional<LaboratoryRecipe> getMatchingRecipe(Level level) {
         RecipeWrapper wrapper = new RecipeWrapper(itemHandler);
-        return level.getRecipeManager().getRecipeFor(ModRecipeTypes.LABORATORY_TYPE.get(), wrapper, level);
+        Optional<LaboratoryRecipe> match =
+                level.getRecipeManager().getRecipeFor(ModRecipeTypes.LABORATORY_TYPE.get(), wrapper, level);
+        if (match.isEmpty()) {
+            return match;
+        }
+
+        // Hard gate: a tier's recipe is only allowed to start progressing once the
+        // team owning this chunk has already crossed the immediately preceding tier's
+        // threshold. Rejecting here (rather than in the KubeJS listener after the fact)
+        // means out-of-order items are never consumed in the first place.
+        Team team = ProgressionTiers.resolveTeam(level, getBlockPos());
+        if (team == null || !ProgressionTiers.canCraftTier(team, match.get().getTier())) {
+            return Optional.empty();
+        }
+
+        return match;
     }
 
     private void craft(Level level, BlockPos pos) {
         ChunkDimPos chunkDimPos = new ChunkDimPos(level, pos);
-        MinecraftForge.EVENT_BUS.post(new ProgressionEvent(chunkDimPos, currentValue));
+        MinecraftForge.EVENT_BUS.post(new ProgressionEvent(chunkDimPos, currentTier, currentValue));
 
         for (int slot = 0; slot < itemHandler.getSlots(); slot++) {
             ItemStack stack = itemHandler.getStackInSlot(slot);
@@ -146,6 +167,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
         progress = 0;
         currentRecipeId = null;
+        currentTier = null;
         currentValue = 0;
     }
 

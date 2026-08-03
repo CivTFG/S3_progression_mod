@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    { "item": "tfc:metal/ingot/steel" },
+    { "item": "tfc:metal/ingot/steel" },
+    { "item": "minecraft:flint" },
+    { "item": "minecraft:paper" }
+  ],
+  "result": {
+    "item": "s3_progression_mod:steel_mining_science",
+    "count": 1
+  }
+}

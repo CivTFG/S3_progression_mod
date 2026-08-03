@@ -45,3 +45,17 @@ Laboratory block that fires progression events for KubeJS.
     versionRange="[15.0.2,)"
     ordering="NONE"
     side="BOTH"
+
+[[dependencies.s3_progression_mod]]
+    modId="ftbteams"
+    mandatory=true
+    versionRange="[2001.3.2,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.s3_progression_mod]]
+    modId="ftbchunks"
+    mandatory=true
+    versionRange="[2001.3.8,)"
+    ordering="NONE"
+    side="BOTH"

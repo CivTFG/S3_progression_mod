@@ -11,7 +11,8 @@ import net.minecraftforge.eventbus.api.Event;
  * not in server_scripts) with:
  *
  *   ForgeEvents.onEvent('com.civtfg.progression.event.ProgressionEvent', event => {
- *       let pos = event.pos    // dev.ftb.mods.ftblibrary.math.ChunkDimPos (chunk + dimension, not exact BlockPos)
+ *       let pos = event.pos     // dev.ftb.mods.ftblibrary.math.ChunkDimPos (chunk + dimension, not exact BlockPos)
+ *       let tier = event.tier   // e.g. "LV", "MV", "HV" - which independent tier track this counts toward
  *       let value = event.value
  *   })
  *
@@ -21,15 +22,21 @@ import net.minecraftforge.eventbus.api.Event;
 public class ProgressionEvent extends Event {
 
     private final ChunkDimPos pos;
+    private final String tier;
     private final int value;
 
-    public ProgressionEvent(ChunkDimPos pos, int value) {
+    public ProgressionEvent(ChunkDimPos pos, String tier, int value) {
         this.pos = pos;
+        this.tier = tier;
         this.value = value;
     }
 
     public ChunkDimPos getPos() {
         return pos;
+    }
+
+    public String getTier() {
+        return tier;
     }
 
     public int getValue() {

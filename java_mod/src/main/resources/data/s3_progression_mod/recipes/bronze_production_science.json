@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    { "item": "tfc:metal/ingot/bronze" },
+    { "item": "tfc:metal/ingot/bronze" },
+    { "item": "minecraft:stick" },
+    { "item": "minecraft:paper" }
+  ],
+  "result": {
+    "item": "s3_progression_mod:bronze_production_science",
+    "count": 1
+  }
+}

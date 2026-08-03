@@ -6,6 +6,7 @@ import com.civtfg.progression.registry.ModBlockEntities;
 import com.civtfg.progression.registry.ModBlocks;
 import com.civtfg.progression.registry.ModItems;
 import com.civtfg.progression.registry.ModMenuTypes;
+import com.civtfg.progression.registry.ModScienceItems;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
@@ -32,6 +33,7 @@ public class ProgressionMod {
 
         ModBlocks.BLOCKS.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
+        ModScienceItems.register();
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
         ModMenuTypes.MENUS.register(modEventBus);
         ModRecipeTypes.RECIPE_TYPES.register(modEventBus);
@@ -52,6 +54,13 @@ public class ProgressionMod {
     private void buildCreativeModeTabContents(final BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
             event.accept(ModItems.LABORATORY_ITEM);
+        }
+        if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
+            for (ModScienceItems.Age age : ModScienceItems.Age.values()) {
+                for (ModScienceItems.Category category : ModScienceItems.Category.values()) {
+                    event.accept(ModScienceItems.get(age, category));
+                }
+            }
         }
     }
 }
