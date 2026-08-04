@@ -14,20 +14,21 @@
 
 const FTBChunksAPI = Java.loadClass('dev.ftb.mods.ftbchunks.api.FTBChunksAPI')
 
-// Shared with progression_commands.js (server_scripts) and Java's ProgressionTiers -
-// keep all three in sync by hand. Each key must match the "tier" string used in that
-// tier's laboratory recipes (see laboratory_recipes.js).
-const RESEARCH_KEY = 's3_progression_mod:research'
-const TIERS = {
-    BRONZE: { threshold: 3, stage: 'bronze_unlocked' },
-    IRON: { threshold: 3, stage: 'iron_unlocked' },
-    STEEL: { threshold: 3, stage: 'steel_unlocked' },
-    STEAM: { threshold: 3, stage: 'steam_unlocked' },
-    LV: { threshold: 3, stage: 'furnace_unlocked' },
-    MV: { threshold: 3, stage: 'mv_unlocked' },
-    HV: { threshold: 3, stage: 'hv_unlocked' },
-    EV: { threshold: 3, stage: 'ev_unlocked' },
-    IV: { threshold: 3, stage: 'iv_unlocked' },
+// Single source of truth for tier order/thresholds/stages, shared with
+// progression_commands.js, blocked_blocks.js, laboratory_recipes.js and Java's
+// ProgressionTiers - see config_files/s3_progression_mod/progression.json in the repo.
+const PROGRESSION = loadProgressionConfig()
+const RESEARCH_KEY = PROGRESSION.researchKey
+
+function loadProgressionConfig() {
+    const Files = Java.loadClass('java.nio.file.Files')
+    const Paths = Java.loadClass('java.nio.file.Paths')
+    const path = Paths.get('config', 's3_progression_mod', 'progression.json')
+    return JSON.parse(String(Files.readString(path)))
+}
+
+function tierByKey(key) {
+    return PROGRESSION.tiers.find(t => t.key === key)
 }
 
 ForgeEvents.onEvent('com.civtfg.progression.event.ProgressionEvent', event => {
@@ -35,9 +36,9 @@ ForgeEvents.onEvent('com.civtfg.progression.event.ProgressionEvent', event => {
     const tier = event.tier   // e.g. "LV", "MV", "HV"
     const value = event.value // int
 
-    const tierConfig = TIERS[tier]
+    const tierConfig = tierByKey(tier)
     if (!tierConfig) {
-        console.warn(`[s3_progression_mod] Laboratory crafted a recipe for unknown tier "${tier}" - add it to the TIERS table in progression_listener.js, ignoring`)
+        console.warn(`[s3_progression_mod] Laboratory crafted a recipe for unknown tier "${tier}" - add it to config/s3_progression_mod/progression.json, ignoring`)
         return
     }
 
@@ -59,8 +60,8 @@ ForgeEvents.onEvent('com.civtfg.progression.event.ProgressionEvent', event => {
 
     if (total > tierConfig.threshold) {
         team.getOnlineMembers().forEach(player => {
-            if (!player.stages.has(tierConfig.stage)) {
-                player.stages.add(tierConfig.stage)
+            if (!player.stages.has(tierConfig.stageId)) {
+                player.stages.add(tierConfig.stageId)
                 player.tell(`Your team's research has unlocked the ${tier} tier!`)
             }
         })

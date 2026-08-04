@@ -1,5 +1,8 @@
 package com.civtfg.progression.stage;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonSyntaxException;
 import dev.ftb.mods.ftbchunks.api.ClaimedChunk;
 import dev.ftb.mods.ftbchunks.api.FTBChunksAPI;
 import dev.ftb.mods.ftblibrary.math.ChunkDimPos;
@@ -9,8 +12,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.fml.loading.FMLPaths;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Ordered list of progression tiers/gamestages granted by KubeJS as each tier's
@@ -20,29 +29,48 @@ import javax.annotation.Nullable;
  * even allowed to start progressing, so out-of-order recipes are rejected before their
  * items are consumed.
  *
- * There is no shared source of truth between the KubeJS and Java sides - keep this list
- * and that script's TIERS table in sync by hand (same keys, same thresholds).
+ * Loaded from config/s3_progression_mod/progression.json (repo copy tracked at
+ * config_files/s3_progression_mod/progression.json), which is the single source of
+ * truth for tier order/thresholds/stage ids shared by this class AND every KubeJS
+ * script that used to hand-copy the same table (progression_listener.js,
+ * progression_commands.js, blocked_blocks.js, laboratory_recipes.js). Edit that one
+ * file to change tier/stage/threshold data - no Java or JS changes required.
  */
 public final class ProgressionTiers {
-
-    /** Same NBT key KubeJS writes the per-tier research compound under on the team. */
-    public static final String RESEARCH_KEY = "s3_progression_mod:research";
 
     public record Tier(String key, String displayName, String stageId, int threshold) {
     }
 
+    private record Config(String researchKey, String[] categories, Tier[] tiers) {
+    }
+
+    /** Same NBT key KubeJS writes the per-tier research compound under on the team. */
+    public static final String RESEARCH_KEY;
+
+    /** Science item category suffixes, e.g. "mining" - must match ModScienceItems.Category names lowercased. */
+    public static final String[] CATEGORIES;
+
     /** Order matters: index N requires index N-1's threshold to already be crossed. */
-    public static final Tier[] TIERS = {
-            new Tier("BRONZE", "Bronze Age", "bronze_unlocked", 3),
-            new Tier("IRON", "Iron Age", "iron_unlocked", 3),
-            new Tier("STEEL", "Steel Age", "steel_unlocked", 3),
-            new Tier("STEAM", "Steam Age", "steam_unlocked", 3),
-            new Tier("LV", "LV", "furnace_unlocked", 3),
-            new Tier("MV", "MV", "mv_unlocked", 3),
-            new Tier("HV", "HV", "hv_unlocked", 3),
-            new Tier("EV", "EV", "ev_unlocked", 3),
-            new Tier("IV", "IV", "iv_unlocked", 3),
-    };
+    public static final Tier[] TIERS;
+
+    static {
+        Path path = FMLPaths.CONFIGDIR.get().resolve("s3_progression_mod").resolve("progression.json");
+        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            Gson gson = new GsonBuilder().create();
+            Config config = gson.fromJson(reader, Config.class);
+            if (config == null || config.tiers() == null || config.tiers().length == 0) {
+                throw new IllegalStateException("progression.json parsed but has no tiers: " + path);
+            }
+            RESEARCH_KEY = config.researchKey();
+            CATEGORIES = config.categories();
+            TIERS = config.tiers();
+        } catch (IOException | JsonSyntaxException e) {
+            throw new IllegalStateException(
+                    "Failed to load " + path + " - this file is the single source of truth for progression "
+                            + "tiers/stages/thresholds and must be deployed alongside the mod jar. "
+                            + "See config_files/s3_progression_mod/progression.json in the mod repo.", e);
+        }
+    }
 
     @Nullable
     private static Tier find(String key) {
@@ -52,6 +80,10 @@ public final class ProgressionTiers {
             }
         }
         return null;
+    }
+
+    public static boolean hasTier(String key) {
+        return find(key) != null;
     }
 
     /**

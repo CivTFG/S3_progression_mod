@@ -1,0 +1,15 @@
+{
+  "researchKey": "s3_progression_mod:research",
+  "categories": ["mining", "farming", "production", "exploration", "challenge"],
+  "tiers": [
+    { "key": "BRONZE", "displayName": "Bronze Age", "stageId": "bronze_unlocked", "threshold": 3 },
+    { "key": "IRON", "displayName": "Iron Age", "stageId": "iron_unlocked", "threshold": 3 },
+    { "key": "STEEL", "displayName": "Steel Age", "stageId": "steel_unlocked", "threshold": 3 },
+    { "key": "STEAM", "displayName": "Steam Age", "stageId": "steam_unlocked", "threshold": 3 },
+    { "key": "LV", "displayName": "LV", "stageId": "furnace_unlocked", "threshold": 3 },
+    { "key": "MV", "displayName": "MV", "stageId": "mv_unlocked", "threshold": 3 },
+    { "key": "HV", "displayName": "HV", "stageId": "hv_unlocked", "threshold": 3 },
+    { "key": "EV", "displayName": "EV", "stageId": "ev_unlocked", "threshold": 3 },
+    { "key": "IV", "displayName": "IV", "stageId": "iv_unlocked", "threshold": 3 }
+  ]
+}

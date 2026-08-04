@@ -4,19 +4,21 @@
 
 const FTBTeamsAPI = Java.loadClass('dev.ftb.mods.ftbteams.api.FTBTeamsAPI')
 
-// Shared with progression_listener.js (startup_scripts) and Java's ProgressionTiers -
-// keep all three in sync by hand.
-const RESEARCH_KEY = 's3_progression_mod:research'
-const TIERS = {
-    BRONZE: { threshold: 3, stage: 'bronze_unlocked' },
-    IRON: { threshold: 3, stage: 'iron_unlocked' },
-    STEEL: { threshold: 3, stage: 'steel_unlocked' },
-    STEAM: { threshold: 3, stage: 'steam_unlocked' },
-    LV: { threshold: 3, stage: 'furnace_unlocked' },
-    MV: { threshold: 3, stage: 'mv_unlocked' },
-    HV: { threshold: 3, stage: 'hv_unlocked' },
-    EV: { threshold: 3, stage: 'ev_unlocked' },
-    IV: { threshold: 3, stage: 'iv_unlocked' },
+// Single source of truth for tier order/thresholds/stages, shared with
+// progression_listener.js, blocked_blocks.js, laboratory_recipes.js and Java's
+// ProgressionTiers - see config_files/s3_progression_mod/progression.json in the repo.
+const PROGRESSION = loadProgressionConfig()
+const RESEARCH_KEY = PROGRESSION.researchKey
+
+function loadProgressionConfig() {
+    const Files = Java.loadClass('java.nio.file.Files')
+    const Paths = Java.loadClass('java.nio.file.Paths')
+    const path = Paths.get('config', 's3_progression_mod', 'progression.json')
+    return JSON.parse(String(Files.readString(path)))
+}
+
+function tierByKey(key) {
+    return PROGRESSION.tiers.find(t => t.key === key)
 }
 
 function getPlayerTeam(player) {
@@ -29,13 +31,12 @@ PlayerEvents.loggedIn(event => {
     if (!team) return
 
     const research = team.getExtraData().getCompound(RESEARCH_KEY)
-    Object.keys(TIERS).forEach(tier => {
-        const tierConfig = TIERS[tier]
-        const unlocked = research.getInt(tier) > tierConfig.threshold
-        if (unlocked && !player.stages.has(tierConfig.stage)) {
-            player.stages.add(tierConfig.stage)
-        } else if (!unlocked && player.stages.has(tierConfig.stage)) {
-            player.stages.remove(tierConfig.stage)
+    PROGRESSION.tiers.forEach(tierConfig => {
+        const unlocked = research.getInt(tierConfig.key) > tierConfig.threshold
+        if (unlocked && !player.stages.has(tierConfig.stageId)) {
+            player.stages.add(tierConfig.stageId)
+        } else if (!unlocked && player.stages.has(tierConfig.stageId)) {
+            player.stages.remove(tierConfig.stageId)
         }
     })
 })
@@ -44,7 +45,7 @@ ServerEvents.commandRegistry(event => {
     const { commands: Commands, arguments: Arguments } = event
 
     function suggestTiers(ctx, builder) {
-        Object.keys(TIERS).forEach(tier => builder.suggest(tier))
+        PROGRESSION.tiers.forEach(t => builder.suggest(t.key))
         return builder.buildFuture()
     }
 
@@ -61,7 +62,7 @@ ServerEvents.commandRegistry(event => {
                         }
 
                         const tier = Arguments.STRING.getResult(ctx, 'tier')
-                        const tierConfig = TIERS[tier]
+                        const tierConfig = tierByKey(tier)
                         if (!tierConfig) {
                             ctx.source.sendFailure(Component.red(`Unknown tier: '${tier}'`))
                             return 0
@@ -91,7 +92,7 @@ ServerEvents.commandRegistry(event => {
                         }
 
                         const tier = Arguments.STRING.getResult(ctx, 'tier')
-                        const tierConfig = TIERS[tier]
+                        const tierConfig = tierByKey(tier)
                         if (!tierConfig) {
                             ctx.source.sendFailure(Component.red(`Unknown tier: '${tier}'`))
                             return 0
@@ -110,8 +111,8 @@ ServerEvents.commandRegistry(event => {
                         team.markDirty()
 
                         team.getOnlineMembers().forEach(member => {
-                            if (member.stages.has(tierConfig.stage)) {
-                                member.stages.remove(tierConfig.stage)
+                            if (member.stages.has(tierConfig.stageId)) {
+                                member.stages.remove(tierConfig.stageId)
                             }
                         })
 
