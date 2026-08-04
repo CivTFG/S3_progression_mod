@@ -16,7 +16,6 @@ import net.minecraftforge.fml.loading.FMLPaths;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,6 +34,15 @@ import java.nio.file.Path;
  * script that used to hand-copy the same table (progression_listener.js,
  * progression_commands.js, blocked_blocks.js, laboratory_recipes.js). Edit that one
  * file to change tier/stage/threshold data - no Java or JS changes required.
+ *
+ * KubeJS scripts can't read this file directly - KubeJS's own ClassFilter denies the
+ * entire java.io/java.nio packages by default (sandboxing scripts away from arbitrary
+ * filesystem access), so `Java.loadClass('java.nio.file.Files')` always throws
+ * "Class is not allowed by class filter!". {@link #rawJson()} below is the workaround:
+ * scripts call this (unrestricted, like any other mod class) to get the bytes, then
+ * JSON.parse it themselves - this class never hands them parsed Tier objects, so it's
+ * still the JS side doing its own independent parsing of the same file, not a Java-side
+ * API bridge.
  */
 public final class ProgressionTiers {
 
@@ -53,11 +61,14 @@ public final class ProgressionTiers {
     /** Order matters: index N requires index N-1's threshold to already be crossed. */
     public static final Tier[] TIERS;
 
+    private static final String RAW_JSON;
+
     static {
         Path path = FMLPaths.CONFIGDIR.get().resolve("s3_progression_mod").resolve("progression.json");
-        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+        try {
+            RAW_JSON = Files.readString(path, StandardCharsets.UTF_8);
             Gson gson = new GsonBuilder().create();
-            Config config = gson.fromJson(reader, Config.class);
+            Config config = gson.fromJson(RAW_JSON, Config.class);
             if (config == null || config.tiers() == null || config.tiers().length == 0) {
                 throw new IllegalStateException("progression.json parsed but has no tiers: " + path);
             }
@@ -70,6 +81,11 @@ public final class ProgressionTiers {
                             + "tiers/stages/thresholds and must be deployed alongside the mod jar. "
                             + "See config_files/s3_progression_mod/progression.json in the mod repo.", e);
         }
+    }
+
+    /** Raw contents of progression.json, for KubeJS scripts to JSON.parse themselves (see class javadoc). */
+    public static String rawJson() {
+        return RAW_JSON;
     }
 
     @Nullable

@@ -17,14 +17,16 @@ const FTBChunksAPI = Java.loadClass('dev.ftb.mods.ftbchunks.api.FTBChunksAPI')
 // Single source of truth for tier order/thresholds/stages, shared with
 // progression_commands.js, blocked_blocks.js, laboratory_recipes.js and Java's
 // ProgressionTiers - see config_files/s3_progression_mod/progression.json in the repo.
+//
+// KubeJS's own class filter denies java.nio/java.io entirely (scripts can't read files
+// directly), so the raw bytes come from ProgressionTiers.rawJson() (our own mod class,
+// unrestricted) instead - this script still does its own JSON.parse of that text.
 const PROGRESSION = loadProgressionConfig()
 const RESEARCH_KEY = PROGRESSION.researchKey
 
 function loadProgressionConfig() {
-    const Files = Java.loadClass('java.nio.file.Files')
-    const Paths = Java.loadClass('java.nio.file.Paths')
-    const path = Paths.get('config', 's3_progression_mod', 'progression.json')
-    return JSON.parse(String(Files.readString(path)))
+    const ProgressionTiers = Java.loadClass('com.civtfg.progression.stage.ProgressionTiers')
+    return JSON.parse(String(ProgressionTiers.rawJson()))
 }
 
 function tierByKey(key) {

@@ -13,11 +13,13 @@
 // Wrapped in an IIFE so this file's only top-level name is LABORATORY_RECIPES_PROGRESSION -
 // other server_scripts files load the same progression.json independently and must not
 // collide on shared top-level names (KubeJS loads all server_scripts into one scope).
+//
+// KubeJS's own class filter denies java.nio/java.io entirely (scripts can't read files
+// directly), so the raw bytes come from ProgressionTiers.rawJson() (our own mod class,
+// unrestricted) instead - this script still does its own JSON.parse of that text.
 const LABORATORY_RECIPES_PROGRESSION = (() => {
-    const Files = Java.loadClass('java.nio.file.Files')
-    const Paths = Java.loadClass('java.nio.file.Paths')
-    const path = Paths.get('config', 's3_progression_mod', 'progression.json')
-    return JSON.parse(String(Files.readString(path)))
+    const ProgressionTiers = Java.loadClass('com.civtfg.progression.stage.ProgressionTiers')
+    return JSON.parse(String(ProgressionTiers.rawJson()))
 })()
 
 ServerEvents.recipes(event => {
