@@ -32,8 +32,8 @@ import java.nio.file.Path;
  * config_files/s3_progression_mod/progression.json), which is the single source of
  * truth for tier order/thresholds/stage ids shared by this class AND every KubeJS
  * script that used to hand-copy the same table (progression_listener.js,
- * progression_commands.js, blocked_blocks.js, laboratory_recipes.js). Edit that one
- * file to change tier/stage/threshold data - no Java or JS changes required.
+ * progression_commands.js, blocked_blocks.js). Edit that one file to change
+ * tier/stage/threshold data - no Java or JS changes required.
  *
  * KubeJS scripts can't read this file directly - KubeJS's own ClassFilter denies the
  * entire java.io/java.nio packages by default (sandboxing scripts away from arbitrary

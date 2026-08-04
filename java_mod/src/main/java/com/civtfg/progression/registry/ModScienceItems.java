@@ -6,16 +6,22 @@ import net.minecraftforge.registries.RegistryObject;
 
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.IdentityHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The 5 "science" items for each of the 9 progression tiers (see
  * com.civtfg.progression.stage.ProgressionTiers for the tier order/thresholds/stages -
- * the {@link Age} enum names here must match that class's Tier.key() values exactly,
- * since laboratory recipes tie a tier key to whichever 5 items are its science items).
+ * the {@link Age} enum names here must match that class's Tier.key() values exactly).
  * {@link #register()} checks this against progression.json on startup and fails fast
  * on a mismatch instead of silently drifting.
+ *
+ * {@link com.civtfg.progression.blockentity.LaboratoryBlockEntity} identifies whichever
+ * science items a player puts in its slots via {@link #identify(Item)} rather than
+ * matching against a fixed recipe - see that class for how the tier/value are derived
+ * from the items present.
  *
  * Registered onto {@link ModItems#ITEMS} - call {@link #register()} once from the mod
  * constructor to force this class to load and actually run the registrations.
@@ -48,7 +54,13 @@ public final class ModScienceItems {
         CHALLENGE
     }
 
+    public record Identity(Age age, Category category) {
+    }
+
     private static final Map<Age, Map<Category, RegistryObject<Item>>> SCIENCE_ITEMS = new EnumMap<>(Age.class);
+
+    /** Lazily built on first {@link #identify} call - RegistryObject#get() isn't safe until registries are populated. */
+    private static Map<Item, Identity> byItem;
 
     public static RegistryObject<Item> get(Age age, Category category) {
         return SCIENCE_ITEMS.get(age).get(category);
@@ -56,6 +68,20 @@ public final class ModScienceItems {
 
     public static String itemId(Age age, Category category) {
         return age.name().toLowerCase() + "_" + category.name().toLowerCase() + "_science";
+    }
+
+    /** @return the (age, category) a science item was registered under, or empty if {@code item} isn't one. */
+    public static Optional<Identity> identify(Item item) {
+        if (byItem == null) {
+            Map<Item, Identity> map = new IdentityHashMap<>();
+            for (Age age : Age.values()) {
+                for (Category category : Category.values()) {
+                    map.put(get(age, category).get(), new Identity(age, category));
+                }
+            }
+            byItem = map;
+        }
+        return Optional.ofNullable(byItem.get(item));
     }
 
     public static void register() {

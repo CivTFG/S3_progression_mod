@@ -2,17 +2,14 @@ package com.civtfg.progression.blockentity;
 
 import com.civtfg.progression.event.ProgressionEvent;
 import com.civtfg.progression.menu.LaboratoryMenu;
-import com.civtfg.progression.recipe.LaboratoryRecipe;
-import com.civtfg.progression.recipe.ModRecipeTypes;
 import com.civtfg.progression.registry.ModBlockEntities;
+import com.civtfg.progression.registry.ModScienceItems;
 import com.civtfg.progression.stage.ProgressionTiers;
 import dev.ftb.mods.ftblibrary.math.ChunkDimPos;
 import dev.ftb.mods.ftbteams.api.Team;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.Container;
 import net.minecraft.world.Containers;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
@@ -29,16 +26,27 @@ import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemStackHandler;
-import net.minecraftforge.items.wrapper.RecipeWrapper;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
     public static final int SLOT_COUNT = 5;
     public static final int MAX_PROGRESS = 100;
+
+    /**
+     * What a tier's laboratory craft resolves to once its 5 slots are read: the tier
+     * being progressed and how much its counter advances. Not tied to a fixed recipe -
+     * see {@link #getMatchingScience(Level)}.
+     */
+    private record Match(String tier, int value) {
+    }
 
     private final ItemStackHandler itemHandler = new ItemStackHandler(SLOT_COUNT) {
         @Override
@@ -52,8 +60,6 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
     private boolean contentsChanged = false;
     private int progress = 0;
-    @Nullable
-    private ResourceLocation currentRecipeId = null;
     @Nullable
     private String currentTier = null;
     private int currentValue = 0;
@@ -99,12 +105,14 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
             dirty = true;
         }
 
-        Optional<LaboratoryRecipe> match = be.getMatchingRecipe(level);
+        // Recomputed fresh every tick from the current slot contents (cheap - 5 slots) -
+        // its result can only change when contents change, which already reset progress
+        // above, so there's no need to track a separate "recipe identity" to detect that.
+        Optional<Match> match = be.getMatchingScience(level);
 
         if (match.isEmpty()) {
-            if (be.progress != 0 || be.currentRecipeId != null) {
+            if (be.progress != 0 || be.currentTier != null) {
                 be.progress = 0;
-                be.currentRecipeId = null;
                 be.currentTier = null;
                 be.currentValue = 0;
                 dirty = true;
@@ -115,13 +123,8 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
             return;
         }
 
-        LaboratoryRecipe recipe = match.get();
-        if (!recipe.getId().equals(be.currentRecipeId)) {
-            be.currentRecipeId = recipe.getId();
-            be.currentTier = recipe.getTier();
-            be.currentValue = recipe.getValue();
-            be.progress = 0;
-        }
+        be.currentTier = match.get().tier();
+        be.currentValue = match.get().value();
 
         be.progress++;
         if (be.progress >= MAX_PROGRESS) {
@@ -131,24 +134,53 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
         setChanged(level, pos, state);
     }
 
-    private Optional<LaboratoryRecipe> getMatchingRecipe(Level level) {
-        RecipeWrapper wrapper = new RecipeWrapper(itemHandler);
-        Optional<LaboratoryRecipe> match =
-                level.getRecipeManager().getRecipeFor(ModRecipeTypes.LABORATORY_TYPE.get(), wrapper, level);
-        if (match.isEmpty()) {
-            return match;
+    /**
+     * Reads the 5 slots directly instead of matching a fixed recipe: any 1-5 DIFFERENT
+     * science items from the same tier are valid, and the value fired advances
+     * geometrically with how many distinct sciences are present (1, 2, 4, 8, 16 for
+     * 1..5 distinct items) - putting a duplicate category in two slots, or mixing two
+     * different tiers' items, invalidates the craft entirely rather than partially
+     * counting it.
+     */
+    private Optional<Match> getMatchingScience(Level level) {
+        Map<ModScienceItems.Age, Set<ModScienceItems.Category>> byAge = new EnumMap<>(ModScienceItems.Age.class);
+
+        for (int slot = 0; slot < itemHandler.getSlots(); slot++) {
+            ItemStack stack = itemHandler.getStackInSlot(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+
+            Optional<ModScienceItems.Identity> identity = ModScienceItems.identify(stack.getItem());
+            if (identity.isEmpty()) {
+                return Optional.empty();
+            }
+
+            Set<ModScienceItems.Category> categories =
+                    byAge.computeIfAbsent(identity.get().age(), a -> EnumSet.noneOf(ModScienceItems.Category.class));
+            if (!categories.add(identity.get().category())) {
+                return Optional.empty();
+            }
         }
 
-        // Hard gate: a tier's recipe is only allowed to start progressing once the
-        // team owning this chunk has already crossed the immediately preceding tier's
-        // threshold. Rejecting here (rather than in the KubeJS listener after the fact)
-        // means out-of-order items are never consumed in the first place.
-        Team team = ProgressionTiers.resolveTeam(level, getBlockPos());
-        if (team == null || !ProgressionTiers.canCraftTier(team, match.get().getTier())) {
+        if (byAge.size() != 1) {
             return Optional.empty();
         }
 
-        return match;
+        Map.Entry<ModScienceItems.Age, Set<ModScienceItems.Category>> entry = byAge.entrySet().iterator().next();
+        String tierKey = entry.getKey().name();
+        int value = 1 << (entry.getValue().size() - 1);
+
+        // Hard gate: a tier is only allowed to start progressing once the team owning
+        // this chunk has already crossed the immediately preceding tier's threshold.
+        // Rejecting here (rather than in the KubeJS listener after the fact) means
+        // out-of-order items are never consumed in the first place.
+        Team team = ProgressionTiers.resolveTeam(level, getBlockPos());
+        if (team == null || !ProgressionTiers.canCraftTier(team, tierKey)) {
+            return Optional.empty();
+        }
+
+        return Optional.of(new Match(tierKey, value));
     }
 
     private void craft(Level level, BlockPos pos) {
@@ -158,15 +190,14 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
         for (int slot = 0; slot < itemHandler.getSlots(); slot++) {
             ItemStack stack = itemHandler.getStackInSlot(slot);
             if (!stack.isEmpty()) {
-                // v1 recipes only ever need 1 item per slot; if a future datapack recipe
-                // needs more than 1 of an ingredient in a slot, this needs to shrink by
-                // that ingredient's count instead of a flat 1.
+                // Every science item present is consumed - getMatchingScience already
+                // guarantees at most 1 of each category per slot, so a flat shrink(1) is
+                // always "consume everything that was inserted".
                 stack.shrink(1);
             }
         }
 
         progress = 0;
-        currentRecipeId = null;
         currentTier = null;
         currentValue = 0;
     }

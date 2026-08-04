@@ -5,8 +5,8 @@
 const FTBTeamsAPI = Java.loadClass('dev.ftb.mods.ftbteams.api.FTBTeamsAPI')
 
 // Single source of truth for tier order/thresholds/stages, shared with
-// progression_listener.js, blocked_blocks.js, laboratory_recipes.js and Java's
-// ProgressionTiers - see config_files/s3_progression_mod/progression.json in the repo.
+// progression_listener.js, blocked_blocks.js and Java's ProgressionTiers - see
+// config_files/s3_progression_mod/progression.json in the repo.
 //
 // KubeJS's own class filter denies java.nio/java.io entirely (scripts can't read files
 // directly), so the raw bytes come from ProgressionTiers.rawJson() (our own mod class,
