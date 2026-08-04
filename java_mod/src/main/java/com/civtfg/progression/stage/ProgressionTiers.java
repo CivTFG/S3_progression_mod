@@ -49,6 +49,10 @@ public final class ProgressionTiers {
     public record Tier(String key, String displayName, String stageId, int threshold) {
     }
 
+    /** The tier a team is actively accumulating research toward, and how far along it is. */
+    public record Progress(String tierKey, String displayName, int current, int threshold) {
+    }
+
     private record Config(String researchKey, String[] categories, Tier[] tiers) {
     }
 
@@ -155,6 +159,22 @@ public final class ProgressionTiers {
             }
         }
         return TIERS[0].displayName();
+    }
+
+    /**
+     * @return {@code team}'s progress on whichever tier it's currently accumulating
+     * research toward (the first not-yet-unlocked tier in order), or {@code null} once
+     * every tier is unlocked.
+     */
+    @Nullable
+    public static Progress currentProgress(Team team) {
+        CompoundTag research = team.getExtraData().getCompound(RESEARCH_KEY);
+        for (Tier tier : TIERS) {
+            if (!isUnlocked(team, tier.key())) {
+                return new Progress(tier.key(), tier.displayName(), research.getInt(tier.key()), tier.threshold());
+            }
+        }
+        return null;
     }
 
     private ProgressionTiers() {

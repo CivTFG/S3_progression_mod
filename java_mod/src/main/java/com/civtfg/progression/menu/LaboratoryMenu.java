@@ -25,7 +25,7 @@ public class LaboratoryMenu extends AbstractContainerMenu {
 
     /** Client-side constructor, invoked via the registered MenuType factory. */
     public LaboratoryMenu(int containerId, Inventory playerInventory, BlockPos pos) {
-        this(containerId, playerInventory, resolveBlockEntity(playerInventory, pos), new SimpleContainerData(2));
+        this(containerId, playerInventory, resolveBlockEntity(playerInventory, pos), new SimpleContainerData(4));
     }
 
     /** Server-side constructor, invoked from LaboratoryBlockEntity#createMenu. */
@@ -74,6 +74,16 @@ public class LaboratoryMenu extends AbstractContainerMenu {
 
     public int getMaxProgress() {
         return data.get(1);
+    }
+
+    /** Research banked so far toward the chunk-owning team's current tier. */
+    public int getTierProgress() {
+        return data.get(2);
+    }
+
+    /** That tier's unlock threshold, or -1 if every tier is already unlocked (or the chunk is unclaimed). */
+    public int getTierThreshold() {
+        return data.get(3);
     }
 
     @Override

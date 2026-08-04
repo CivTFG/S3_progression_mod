@@ -70,6 +70,8 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
             return switch (index) {
                 case 0 -> progress;
                 case 1 -> MAX_PROGRESS;
+                case 2 -> tierProgress();
+                case 3 -> tierThreshold();
                 default -> 0;
             };
         }
@@ -83,9 +85,36 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
         @Override
         public int getCount() {
-            return 2;
+            return 4;
         }
     };
+
+    /**
+     * Research progress toward whichever tier the chunk owning this lab is currently
+     * working on - the same team/tier the craft-gating in {@link #getMatchingScience}
+     * uses, so this reflects exactly why a craft here is or isn't allowed right now.
+     * {@code tierThreshold()} returns -1 once every tier is unlocked (nothing left to
+     * show progress for) or if this lab sits in unclaimed territory.
+     */
+    @Nullable
+    private ProgressionTiers.Progress currentTeamProgress() {
+        Level level = getLevel();
+        if (level == null) {
+            return null;
+        }
+        Team team = ProgressionTiers.resolveTeam(level, getBlockPos());
+        return team != null ? ProgressionTiers.currentProgress(team) : null;
+    }
+
+    private int tierProgress() {
+        ProgressionTiers.Progress teamProgress = currentTeamProgress();
+        return teamProgress != null ? teamProgress.current() : 0;
+    }
+
+    private int tierThreshold() {
+        ProgressionTiers.Progress teamProgress = currentTeamProgress();
+        return teamProgress != null ? teamProgress.threshold() : -1;
+    }
 
     public LaboratoryBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.LABORATORY.get(), pos, state);
