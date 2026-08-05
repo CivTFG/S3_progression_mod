@@ -53,7 +53,18 @@ public final class ProgressionTiers {
     public record Progress(String tierKey, String displayName, int current, int threshold) {
     }
 
-    private record Config(String researchKey, String[] categories, Tier[] tiers) {
+    /**
+     * One gating (multi-)block/item per age transition - see blocked_blocks.js for the
+     * "interaction"/"placement" mechanisms (KubeJS BlockEvents), and
+     * {@link com.civtfg.progression.stage.GatedItemEnforcer} for "possession" (Java-side,
+     * since gating by block-placement/interaction alone can be bypassed once a player has
+     * unlocked automation capable of placing blocks or acquiring items without the
+     * matching player action ever firing).
+     */
+    public record Gate(String requiresTier, String mechanism, boolean entity, String[] blocks, String message) {
+    }
+
+    private record Config(String researchKey, String[] categories, Tier[] tiers, Gate[] gates) {
     }
 
     /** Same NBT key KubeJS writes the per-tier research compound under on the team. */
@@ -64,6 +75,9 @@ public final class ProgressionTiers {
 
     /** Order matters: index N requires index N-1's threshold to already be crossed. */
     public static final Tier[] TIERS;
+
+    /** One gating (multi-)block/item per age transition - see {@link Gate}. */
+    public static final Gate[] GATES;
 
     private static final String RAW_JSON;
 
@@ -79,6 +93,7 @@ public final class ProgressionTiers {
             RESEARCH_KEY = config.researchKey();
             CATEGORIES = config.categories();
             TIERS = config.tiers();
+            GATES = config.gates() != null ? config.gates() : new Gate[0];
         } catch (IOException | JsonSyntaxException e) {
             throw new IllegalStateException(
                     "Failed to load " + path + " - this file is the single source of truth for progression "
@@ -104,6 +119,13 @@ public final class ProgressionTiers {
 
     public static boolean hasTier(String key) {
         return find(key) != null;
+    }
+
+    /** @return the gamestage id that tier {@code key} grants once unlocked, or {@code null} for an unknown key. */
+    @Nullable
+    public static String stageIdFor(String key) {
+        Tier tier = find(key);
+        return tier != null ? tier.stageId() : null;
     }
 
     /**

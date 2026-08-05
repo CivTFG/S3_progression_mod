@@ -19,3 +19,43 @@ BlockEvents.rightClicked('minecraft:furnace', event => {
     event.cancel()
   }
 })
+
+// One gating (multi-)block per age transition - each locked until the team has reached
+// the tier listed as "requiresTier" in progression.json's "gates" array. This only
+// handles the "interaction" and "placement" mechanisms; the "possession" mechanism (LV
+// generators) is enforced Java-side instead, by GatedItemEnforcer scanning inventories -
+// placement/interaction gates alone can be bypassed once a player has some means of
+// placing/acquiring an item other than the exact action being listened for here.
+const BLOCKED_BLOCKS_GATES = (() => {
+    const ProgressionTiers = Java.loadClass('com.civtfg.progression.stage.ProgressionTiers')
+    const config = JSON.parse(String(ProgressionTiers.rawJson()))
+    return (config.gates || []).map(gate => ({
+        ...gate,
+        stageId: config.tiers.find(t => t.key === gate.requiresTier).stageId
+    }))
+})()
+
+BLOCKED_BLOCKS_GATES.forEach(gate => {
+    if (gate.mechanism === 'interaction' && !gate.entity) {
+        gate.blocks.forEach(id => BlockEvents.rightClicked(id, event => {
+            if (!event.player.stages.has(gate.stageId)) {
+                event.player.tell(gate.message)
+                event.cancel()
+            }
+        }))
+    } else if (gate.mechanism === 'placement') {
+        gate.blocks.forEach(id => BlockEvents.placed(id, event => {
+            if (!event.player.stages.has(gate.stageId)) {
+                event.player.tell(gate.message)
+                event.cancel()
+            }
+        }))
+    } else if (gate.mechanism === 'interaction' && gate.entity) {
+        gate.blocks.forEach(id => EntityEvents.rightClicked(id, event => {
+            if (!event.player.stages.has(gate.stageId)) {
+                event.player.tell(gate.message)
+                event.cancel()
+            }
+        }))
+    }
+})
