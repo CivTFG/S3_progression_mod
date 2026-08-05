@@ -63,11 +63,15 @@ public class LaboratoryScreen extends AbstractContainerScreen<LaboratoryMenu> {
         String tierName = localPlayer != null ? ProgressionTiers.getCurrentTierName(localPlayer) : null;
         guiGraphics.drawString(font, "Current Tier: " + (tierName != null ? tierName : "None"), 8, 18, 0x404040, false);
 
-        // Threshold of -1 means every tier is unlocked (or this lab sits in unclaimed
-        // territory) - either way there's no in-progress tier to show a count for.
-        int tierThreshold = menu.getTierThreshold();
-        if (tierThreshold >= 0) {
-            guiGraphics.drawString(font, "Progress: " + menu.getTierProgress() + " / " + tierThreshold, 8, 29, 0x404040, false);
+        if (!menu.hasTeam()) {
+            guiGraphics.drawString(font, "Unclaimed chunk - claim it to make progress here", 8, 29, 0xAA0000, false);
+        } else {
+            // Threshold of -1 with a claimed chunk means every tier is already unlocked -
+            // nothing left to show progress for.
+            int tierThreshold = menu.getTierThreshold();
+            if (tierThreshold >= 0) {
+                guiGraphics.drawString(font, "Progress: " + menu.getTierProgress() + " / " + tierThreshold, 8, 29, 0x404040, false);
+            }
         }
 
         guiGraphics.drawString(font, playerInventoryTitle, 8, imageHeight - 96 + 2, 0x404040, false);

@@ -26,13 +26,16 @@ BlockEvents.rightClicked('minecraft:furnace', event => {
 // generators) is enforced Java-side instead, by GatedItemEnforcer scanning inventories -
 // placement/interaction gates alone can be bypassed once a player has some means of
 // placing/acquiring an item other than the exact action being listened for here.
+// Rhino (KubeJS's script engine here) doesn't support object-spread in object literals -
+// mutate each parsed gate in place with its resolved stageId instead of spreading it into
+// a new object.
 const BLOCKED_BLOCKS_GATES = (() => {
     const ProgressionTiers = Java.loadClass('com.civtfg.progression.stage.ProgressionTiers')
     const config = JSON.parse(String(ProgressionTiers.rawJson()))
-    return (config.gates || []).map(gate => ({
-        ...gate,
-        stageId: config.tiers.find(t => t.key === gate.requiresTier).stageId
-    }))
+    return (config.gates || []).map(gate => {
+        gate.stageId = config.tiers.find(t => t.key === gate.requiresTier).stageId
+        return gate
+    })
 })()
 
 BLOCKED_BLOCKS_GATES.forEach(gate => {

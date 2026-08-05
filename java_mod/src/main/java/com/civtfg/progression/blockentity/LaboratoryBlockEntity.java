@@ -72,6 +72,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
                 case 1 -> MAX_PROGRESS;
                 case 2 -> tierProgress();
                 case 3 -> tierThreshold();
+                case 4 -> hasTeam() ? 1 : 0;
                 default -> 0;
             };
         }
@@ -85,7 +86,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
         @Override
         public int getCount() {
-            return 4;
+            return 5;
         }
     };
 
@@ -114,6 +115,18 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
     private int tierThreshold() {
         ProgressionTiers.Progress teamProgress = currentTeamProgress();
         return teamProgress != null ? teamProgress.threshold() : -1;
+    }
+
+    /**
+     * @return whether this lab's chunk is claimed by a team at all - {@code tierThreshold()}
+     * alone can't distinguish "unclaimed chunk" from "every tier already unlocked" since
+     * both report -1, and a lab sitting in unclaimed territory can never make progress no
+     * matter what's inserted (see {@link #getMatchingScience}), so the GUI needs to tell
+     * players why nothing is happening rather than looking silently broken.
+     */
+    private boolean hasTeam() {
+        Level level = getLevel();
+        return level != null && ProgressionTiers.resolveTeam(level, getBlockPos()) != null;
     }
 
     public LaboratoryBlockEntity(BlockPos pos, BlockState state) {
