@@ -54,11 +54,18 @@ BLOCKED_BLOCKS_GATES.forEach(gate => {
             }
         }))
     } else if (gate.mechanism === 'interaction' && gate.entity) {
-        gate.blocks.forEach(id => EntityEvents.rightClicked(id, event => {
+        // Rockets are entities (like boats/minecarts), not blocks - there's no
+        // 'EntityEvents.rightClicked' in KubeJS, and unlike BlockEvents.rightClicked,
+        // ItemEvents.entityInteracted has no id-filter argument, so the target entity's
+        // type has to be checked manually inside the callback instead.
+        ItemEvents.entityInteracted(event => {
+            if (gate.blocks.indexOf(event.target.type) === -1) {
+                return
+            }
             if (!event.player.stages.has(gate.stageId)) {
                 event.player.tell(gate.message)
                 event.cancel()
             }
-        }))
+        })
     }
 })
