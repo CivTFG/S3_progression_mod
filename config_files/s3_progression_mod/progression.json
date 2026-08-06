@@ -7,7 +7,6 @@
     { "key": "STEEL", "displayName": "Steel Age", "stageId": "steel_unlocked", "threshold": 3 },
     { "key": "STEAM", "displayName": "Steam Age", "stageId": "steam_unlocked", "threshold": 3 },
     { "key": "LV", "displayName": "LV", "stageId": "furnace_unlocked", "threshold": 3 },
-    { "key": "MV", "displayName": "MV", "stageId": "mv_unlocked", "threshold": 3 },
     { "key": "HV", "displayName": "HV", "stageId": "hv_unlocked", "threshold": 3 },
     { "key": "EV", "displayName": "EV", "stageId": "ev_unlocked", "threshold": 3 },
     { "key": "IV", "displayName": "IV", "stageId": "iv_unlocked", "threshold": 3 }
@@ -17,7 +16,7 @@
     { "requiresTier": "IRON", "mechanism": "interaction", "blocks": ["tfc:blast_furnace"], "message": "You don't know how to build a blast furnace yet." },
     { "requiresTier": "STEEL", "mechanism": "placement", "blocks": ["gtceu:hp_steam_solid_boiler", "gtceu:hp_steam_liquid_boiler", "gtceu:hp_steam_solar_boiler"], "message": "You don't know how to build this yet." },
     { "requiresTier": "STEAM", "mechanism": "possession", "blocks": ["gtceu:lv_steam_turbine", "gtceu:lv_gas_turbine", "gtceu:lv_combustion"], "message": "You don't know how to build this yet." },
-    { "requiresTier": "LV", "mechanism": "interaction", "blocks": ["gtceu:electric_blast_furnace"], "message": "You don't know how to use this yet." },
+    { "requiresTier": "LV", "mechanism": "interaction", "blocks": ["tfg:high_temp_precision_fabricator"], "message": "You don't know how to use this yet." },
     { "requiresTier": "HV", "mechanism": "interaction", "entity": true, "blocks": ["ad_astra:tier_1_rocket"], "message": "You aren't ready to launch this yet." },
     { "requiresTier": "EV", "mechanism": "interaction", "entity": true, "blocks": ["ad_astra:tier_2_rocket"], "message": "You aren't ready to launch this yet." }
   ]

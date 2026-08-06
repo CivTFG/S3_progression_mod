@@ -2,8 +2,8 @@
 // the crafted value to the FTB Team that claims the chunk the laboratory sits in, and
 // unlocks a tier's game stage once that tier's running total passes its threshold.
 //
-// Tiers must be unlocked in order (Bronze -> Iron -> Steel -> Steam -> LV -> MV -> HV
-// -> EV -> IV) - but that ordering is enforced in Java (LaboratoryBlockEntity refuses to
+// Tiers must be unlocked in order (Bronze -> Iron -> Steel -> Steam -> LV -> HV -> EV ->
+// IV) - but that ordering is enforced in Java (LaboratoryBlockEntity refuses to
 // even start progressing an out-of-order recipe), so by the time this event fires the
 // craft has already been confirmed as in-order. This script only needs to track each
 // tier's own counter/threshold/stage.

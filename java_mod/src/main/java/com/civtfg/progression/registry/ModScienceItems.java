@@ -34,7 +34,6 @@ public final class ModScienceItems {
         STEEL("Steel Age"),
         STEAM("Steam Age"),
         LV("LV"),
-        MV("MV"),
         HV("HV"),
         EV("EV"),
         IV("IV");
