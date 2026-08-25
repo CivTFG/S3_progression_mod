@@ -363,13 +363,21 @@ class RecipeEditorApp(tk.Tk):
         self.recipes = read_recipes()
         self.item_index = load_item_index()
 
-        columns = ("age", "category", "machine", "tier", "output", "inputs")
-        self.tree = ttk.Treeview(self, columns=columns, show="headings")
-        for col, width in zip(columns, (90, 100, 130, 70, 60, 400)):
-            self.tree.heading(col, text=col.capitalize())
+        columns = ("machine", "tier", "output", "inputs")
+        self.tree = ttk.Treeview(self, columns=columns, show="tree headings")
+        self.tree.heading("#0", text="Age / Category")
+        self.tree.column("#0", width=220, anchor="w")
+        for col, width, heading in zip(columns, (130, 60, 70, 420), ("Machine", "Tier", "Output", "Inputs")):
+            self.tree.heading(col, text=heading)
             self.tree.column(col, width=width, anchor="w")
         self.tree.grid(row=0, column=0, columnspan=6, sticky="nsew", padx=8, pady=8)
         self.tree.bind("<Double-1>", lambda e: self._edit_selected())
+
+        # Age nodes default open, category nodes default closed; only remembers explicit
+        # user toggles so collapsing/expanding survives a tree rebuild after Add/Edit/etc.
+        self._node_open_state = {}
+        self.tree.bind("<<TreeviewOpen>>", lambda e: self._node_open_state.__setitem__(self.tree.focus(), True))
+        self.tree.bind("<<TreeviewClose>>", lambda e: self._node_open_state.__setitem__(self.tree.focus(), False))
 
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -391,18 +399,48 @@ class RecipeEditorApp(tk.Tk):
 
         self._refresh_tree()
 
+    def _is_open(self, node_id, default):
+        return self._node_open_state.get(node_id, default)
+
     def _refresh_tree(self):
+        selected = self._selected_index()
         self.tree.delete(*self.tree.get_children())
-        for index, recipe in enumerate(self.recipes):
-            inputs_summary = ", ".join(f'{i["count"]}x {i["item"]}' for i in recipe["inputs"])
-            self.tree.insert("", "end", iid=str(index), values=(
-                recipe["age"], recipe["category"], recipe["machine"],
-                recipe.get("tier", ""), recipe.get("output", 1), inputs_summary,
-            ))
+
+        groups = [(age, category) for age in self.ages for category in self.categories]
+        # Any recipe with an age/category outside progression.json (e.g. a typo, or the
+        # config changed since this recipe was written) still gets shown, not dropped.
+        leftover_pairs = sorted({(r["age"], r["category"]) for r in self.recipes} - set(groups))
+        groups += leftover_pairs
+
+        for age, category in groups:
+            indices = [i for i in range(len(self.recipes))
+                       if self.recipes[i]["age"] == age and self.recipes[i]["category"] == category]
+            if not indices:
+                continue
+
+            age_node = f"age:{age}"
+            if not self.tree.exists(age_node):
+                self.tree.insert("", "end", iid=age_node, text=age, open=self._is_open(age_node, True))
+
+            cat_node = f"{age_node}/cat:{category}"
+            self.tree.insert(age_node, "end", iid=cat_node, text=f"{category.title()} ({len(indices)})",
+                              open=self._is_open(cat_node, False))
+
+            for index in indices:
+                recipe = self.recipes[index]
+                inputs_summary = ", ".join(f'{i["count"]}x {i["item"]}' for i in recipe["inputs"])
+                self.tree.insert(cat_node, "end", iid=str(index), values=(
+                    recipe["machine"], recipe.get("tier", ""), recipe.get("output", 1), inputs_summary,
+                ))
+
+        if selected is not None and self.tree.exists(str(selected)):
+            self.tree.selection_set(str(selected))
 
     def _selected_index(self):
         selection = self.tree.selection()
-        return int(selection[0]) if selection else None
+        if not selection or not selection[0].isdigit():
+            return None
+        return int(selection[0])
 
     def _add(self):
         dialog = RecipeDialog(self, self.ages, self.categories, self.item_index)
@@ -434,16 +472,26 @@ class RecipeEditorApp(tk.Tk):
             return
         if messagebox.askyesno("Delete recipe", "Delete the selected recipe?"):
             del self.recipes[index]
+            self.tree.selection_remove(*self.tree.selection())
             self._refresh_tree()
 
     def _move(self, offset):
         index = self._selected_index()
         if index is None:
             return
-        target = index + offset
-        if 0 <= target < len(self.recipes):
+        # Moves within the recipe's own age+category group (not raw adjacent list
+        # indices) - otherwise this could be a no-op that does nothing visible, since the
+        # tree always groups by age/category regardless of underlying list order.
+        recipe = self.recipes[index]
+        group = [i for i, r in enumerate(self.recipes)
+                 if r["age"] == recipe["age"] and r["category"] == recipe["category"]]
+        position = group.index(index) + offset
+        if 0 <= position < len(group):
+            target = group[position]
             self.recipes[index], self.recipes[target] = self.recipes[target], self.recipes[index]
             self._refresh_tree()
+            self.tree.selection_set(str(target))
+            self.tree.see(str(target))
             self.tree.selection_set(str(target))
 
     def _save(self):
