@@ -99,13 +99,26 @@ array by hand, or use the GUI in `tools/`:
   ```
   python tools/build_item_index.py
   ```
-  This scans every jar in the TFG instance's `mods/` folder (plus the instance's FTB Quests
-  chapters as a fallback for items - mostly GTCEU materials - that have no static model or
-  lang entry to scan) and writes `tools/item_index.json`. It needs no running game. Some
-  items still won't be found this way (anything GTCEU generates purely at runtime that
-  isn't referenced in any quest) - the recipe input field still accepts a hand-typed id even
-  when search finds nothing, you'll just need to get that id from somewhere else (e.g. EMI
-  in-game).
+  This scans every jar in the TFG instance's `mods/` folder, then backfills whatever it
+  couldn't find there (mostly GTCEU materials, which are generated purely at runtime with
+  no static model or lang entry to scan) from three places already sitting on disk: the
+  instance's FTB Quests chapters, EMI's own `emi.json` (every item you've ever looked up or
+  favorited there), and - the big one - **ProbeJS**'s dumped live registry.
+
+  ProbeJS (https://github.com/Prunoideae/ProbeJS) is installed in the instance's `mods/`
+  folder specifically for this. Run `/probejs dump` in-game (needs cheats enabled in that
+  world) and **wait at the pause/world screen until it's actually done** before quitting -
+  with ~650+ GTCEU materials to process it can take a couple of minutes, and quitting too
+  early leaves `kubejs/probe/` empty. Once it finishes, it writes
+  `kubejs/probe/generated/globals.d.ts`, which happens to contain a single TypeScript union
+  type listing literally every item id in the live registry - the actual authoritative
+  list, not a guess. Re-run `/probejs dump` (and this script) after major mod updates to
+  refresh it; everything still works without it, just with more unfound items.
+
+  None of the four sources need a running game at index-build time - by the time you run
+  `build_item_index.py`, it's all static data already on disk. If an item still isn't found
+  after all four (should be rare now), the recipe input field still accepts a hand-typed id
+  even when search finds nothing.
 - Then run the editor itself:
   ```
   python tools/recipe_editor.py

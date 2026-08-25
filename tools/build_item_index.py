@@ -31,14 +31,34 @@ wrong, check the mod's real registry name before trusting it.
 GTCEU's material items don't even have a lang fallback, though: material names ("Tin") and
 item forms ("Ingot") are each localized separately (material.gtceu.tin, tagprefix.ingot)
 and composed at runtime, so there's no "item.gtceu.tin_ingot" key to fall back to either -
-confirmed by checking the raw lang json directly. The only static source left that lists
-these items by their real, complete id is the modpack's own FTB Quests chapters (they
-reference real items as quest requirements/rewards), so those .snbt files get scanned too,
-purely for ids this pass hasn't already found - same technique used earlier to build this
-mod's own mining-science recipe list from the LV/HV/EV/IV quest chapters.
+confirmed by checking the raw lang json directly. Two static sources cover the rest:
 
-This needs no running game - it's all static data already inside the mod jars and the
-modpack's own quest files.
+- The modpack's own FTB Quests chapters (they reference real items as quest
+  requirements/rewards) - same technique used earlier to build this mod's own
+  mining-science recipe list from the LV/HV/EV/IV quest chapters.
+- EMI's own <instance>/emi.json - EMI (the item/recipe viewer this pack uses) persists
+  every item you've ever looked up or favorited there, as real, live-resolved registry
+  ids (not reconstructed from anything, so no dots-vs-slashes ambiguity at all - this is
+  actually the most trustworthy source here). It only grows to cover items someone
+  actually looked up in EMI, so it's not exhaustive on its own, but it's a free, no-setup
+  way to backfill exactly the kind of runtime-generated GTCEU items the other sources miss
+  - and it keeps growing the more the pack gets played, so re-running this script later
+  picks up whatever's been looked up since.
+
+A fourth source closes the rest of the gap: ProbeJS (https://github.com/Prunoideae/ProbeJS),
+installed specifically for this. Running `/probejs dump` in-game writes
+kubejs/probe/generated/globals.d.ts, a KubeJS typing file that happens to include a single
+TypeScript union type listing literally every item id in the live registry (`type Item =
+"modid:a" | "modid:b" | ...`) - the actual authoritative list, not a reconstruction or a
+"whatever's been referenced somewhere" fallback. Confirmed it includes GTCEU material items
+the other three sources all miss (e.g. "gtceu:long_gold_rod"). It's still just ids, no
+display names, so lang/prettify fill those in same as the other fallbacks - but for
+coverage, this one source alone is worth more than the first three combined.
+
+None of this needs a running game right now, since the ProbeJS dump is already sitting on
+disk from having run it once - re-run `/probejs dump` and this script after major mod
+updates to refresh it, or skip it entirely (the other three sources still work fine
+without it, just with more gaps).
 
 Run with:  python tools/build_item_index.py [path-to-mods-folder]
 Re-run whenever mods are added/updated/removed to refresh the index.
@@ -51,11 +71,14 @@ from pathlib import Path
 
 DEFAULT_MODS_DIR = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\TerraFirmaGreg-Modern\mods")
 DEFAULT_QUESTS_DIR = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\TerraFirmaGreg-Modern\config\ftbquests\quests")
+DEFAULT_EMI_JSON = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\TerraFirmaGreg-Modern\emi.json")
+DEFAULT_PROBEJS_DTS = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\TerraFirmaGreg-Modern\kubejs\probe\generated\globals.d.ts")
 OUTPUT = Path(__file__).resolve().parent / "item_index.json"
 
 LANG_KEY_RE = re.compile(r"^(item|block)\.([^.]+)\.(.+)$")
 ITEM_MODEL_RE = re.compile(r"^assets/([^/]+)/models/item/(.+)\.json$")
 NAMESPACED_ID_RE = re.compile(r'"([a-z0-9_.]+:[a-z0-9_/.]+)"')
+PROBEJS_ITEM_TYPE_RE = re.compile(r"type Item = (.*?);", re.DOTALL)
 
 
 def scan_jar(jar_path):
@@ -106,9 +129,62 @@ def scan_quests(quests_dir):
     return ids
 
 
+def extract_item_ref(value):
+    """(modid, path) for an item-type EMI stack reference (string "item:modid:path" or
+    "item:modid:path{NBT}", or dict {"type": "item", "id": "modid:path", ...}). Returns
+    None for fluid/tag references (different registries, not usable as an item id) or
+    anything unparseable."""
+    if isinstance(value, dict):
+        if value.get("type") != "item":
+            return None
+        candidate = value.get("id", "")
+    elif isinstance(value, str):
+        if not value.startswith("item:"):
+            return None
+        candidate = value[len("item:"):].split("{", 1)[0]
+    else:
+        return None
+    modid, _, path = candidate.partition(":")
+    return (modid, path) if modid and path else None
+
+
+def scan_emi_json(emi_json_path):
+    ids = set()
+    try:
+        data = json.loads(emi_json_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
+        return ids
+    for entry in data.get("lookup_history", []):
+        ref = extract_item_ref(entry)
+        if ref:
+            ids.add(ref)
+    for favorite in data.get("favorites", []):
+        ref = extract_item_ref(favorite.get("stack")) if isinstance(favorite, dict) else None
+        if ref:
+            ids.add(ref)
+    return ids
+
+
+def scan_probejs_dump(globals_dts_path):
+    """The `type Item = "a:b" | "c:d" | ...` union ProbeJS writes into globals.d.ts after
+    `/probejs dump` - the full, authoritative live registry, no reconstruction involved."""
+    ids = set()
+    text = globals_dts_path.read_text(encoding="utf-8", errors="ignore")
+    match = PROBEJS_ITEM_TYPE_RE.search(text)
+    if not match:
+        return ids
+    for candidate in NAMESPACED_ID_RE.finditer(match.group(1)):
+        modid, _, path = candidate.group(1).partition(":")
+        if modid and path:
+            ids.add((modid, path))
+    return ids
+
+
 def main():
     mods_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_MODS_DIR
     quests_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_QUESTS_DIR
+    emi_json_path = Path(sys.argv[3]) if len(sys.argv) > 3 else DEFAULT_EMI_JSON
+    probejs_dts_path = Path(sys.argv[4]) if len(sys.argv) > 4 else DEFAULT_PROBEJS_DTS
     if not mods_dir.exists():
         print(f"Mods folder not found: {mods_dir}")
         sys.exit(1)
@@ -155,6 +231,41 @@ def main():
         print(f"Quest files added {added} ids not found in any mod jar")
     else:
         print(f"Quests folder not found ({quests_dir}), skipping that fallback")
+
+    # Third fallback: EMI's own saved lookup history/favorites - real, live-resolved ids,
+    # so no dots-vs-slashes guessing needed, just whatever hasn't been found yet.
+    if emi_json_path.exists():
+        emi_ids = scan_emi_json(emi_json_path)
+        added = 0
+        for modid, path in emi_ids:
+            item_id = f"{modid}:{path}"
+            if item_id in by_id:
+                continue
+            dotted_path = path.replace("/", ".")
+            display_name = all_lang.get(modid, {}).get(dotted_path) or prettify(path)
+            by_id[item_id] = display_name
+            added += 1
+        print(f"EMI's lookup history added {added} ids not found anywhere above")
+    else:
+        print(f"emi.json not found ({emi_json_path}), skipping that fallback")
+
+    # Fourth fallback: ProbeJS's dumped live registry - the authoritative full list, so
+    # this should catch virtually everything the first three sources couldn't.
+    if probejs_dts_path.exists():
+        probejs_ids = scan_probejs_dump(probejs_dts_path)
+        added = 0
+        for modid, path in probejs_ids:
+            item_id = f"{modid}:{path}"
+            if item_id in by_id:
+                continue
+            dotted_path = path.replace("/", ".")
+            display_name = all_lang.get(modid, {}).get(dotted_path) or prettify(path)
+            by_id[item_id] = display_name
+            added += 1
+        print(f"ProbeJS's registry dump added {added} ids not found anywhere above")
+    else:
+        print(f"ProbeJS dump not found ({probejs_dts_path}), skipping that fallback "
+              f"- run /probejs dump in-game to enable it")
 
     result = sorted(by_id.items())
 
