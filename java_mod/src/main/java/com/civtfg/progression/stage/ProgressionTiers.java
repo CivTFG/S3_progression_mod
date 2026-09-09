@@ -138,6 +138,9 @@ public final class ProgressionTiers {
 
     /**
      * @return the team claiming the chunk at {@code pos}, or {@code null} if unclaimed.
+     * Server-side only - {@code FTBChunksAPI.api().getManager()} throws an NPE if called
+     * on the client (confirmed via a real crash from {@link com.civtfg.progression.block.LaboratoryBlock#getStateForPlacement},
+     * which runs on both sides); every caller must check {@code level.isClientSide()} first.
      */
     @Nullable
     public static Team resolveTeam(Level level, BlockPos pos) {

@@ -53,7 +53,16 @@ public class LaboratoryBlock extends BaseEntityBlock {
 
     @Override
     public BlockState getStateForPlacement(BlockPlaceContext context) {
-        Team team = ProgressionTiers.resolveTeam(context.getLevel(), context.getClickedPos());
+        Level level = context.getLevel();
+        if (level.isClientSide()) {
+            // FTBChunksAPI's manager is only usable server-side - calling resolveTeam here
+            // NPEs on the client (crash confirmed via FTBChunksAPIImpl#getManager), since
+            // this method runs on both sides (client for placement prediction, server for
+            // the real placement). The client's guess is only ever used for a moment before
+            // the server's real state syncs back, so a fixed default is harmless here.
+            return defaultBlockState();
+        }
+        Team team = ProgressionTiers.resolveTeam(level, context.getClickedPos());
         boolean active = team != null && !ProgressionTiers.hasLaboratory(team);
         return defaultBlockState().setValue(ACTIVE, active);
     }
