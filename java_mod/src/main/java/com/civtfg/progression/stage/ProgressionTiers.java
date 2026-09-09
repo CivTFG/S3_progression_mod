@@ -70,6 +70,14 @@ public final class ProgressionTiers {
     /** Same NBT key KubeJS writes the per-tier research compound under on the team. */
     public static final String RESEARCH_KEY;
 
+    /**
+     * NBT key marking that a team already has a functional Laboratory placed somewhere in
+     * their claim - see {@link com.civtfg.progression.block.LaboratoryBlock}'s "out of
+     * order" decorative-copy mechanic, which reads/writes this via {@link #hasLaboratory}
+     * and {@link #setHasLaboratory} to allow only the first lab per team to be functional.
+     */
+    private static final String HAS_LABORATORY_KEY = "s3_progression_mod:has_laboratory";
+
     /** Science item category suffixes, e.g. "mining" - must match ModScienceItems.Category names lowercased. */
     public static final String[] CATEGORIES;
 
@@ -181,6 +189,17 @@ public final class ProgressionTiers {
             }
         }
         return TIERS[0].displayName();
+    }
+
+    /** @return whether {@code team} already has a functional Laboratory placed somewhere in their claim. */
+    public static boolean hasLaboratory(Team team) {
+        return team.getExtraData().getBoolean(HAS_LABORATORY_KEY);
+    }
+
+    /** Marks whether {@code team} has a functional Laboratory - see {@link #hasLaboratory}. */
+    public static void setHasLaboratory(Team team, boolean value) {
+        team.getExtraData().putBoolean(HAS_LABORATORY_KEY, value);
+        team.markDirty();
     }
 
     /**

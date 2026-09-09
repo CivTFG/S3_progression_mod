@@ -35,7 +35,7 @@ Laboratory block that fires progression events for KubeJS.
 [[dependencies.s3_progression_mod]]
     modId="ftblibrary"
     mandatory=true
-    versionRange="[2001.2.13,)"
+    versionRange="[2001.2.12,)"
     ordering="NONE"
     side="BOTH"
 

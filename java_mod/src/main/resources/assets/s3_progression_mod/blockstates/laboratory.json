@@ -1,5 +1,6 @@
 {
   "variants": {
-    "": { "model": "s3_progression_mod:block/laboratory" }
+    "active=true": { "model": "s3_progression_mod:block/laboratory_active" },
+    "active=false": { "model": "s3_progression_mod:block/laboratory" }
   }
 }

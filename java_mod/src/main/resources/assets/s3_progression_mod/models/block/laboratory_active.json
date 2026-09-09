@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "particle": "s3_progression_mod:block/laboratory_side_active",
+    "side": "s3_progression_mod:block/laboratory_side_active",
+    "top": "s3_progression_mod:block/laboratory_top_active",
+    "bottom": "s3_progression_mod:block/laboratory_bottom"
+  }
+}
