@@ -70,9 +70,17 @@ Hard dependencies (the mod won't load without these - see `mods.toml`):
 - FTB Teams
 - FTB Chunks
 - GameStages (`net.darkhax.gamestages`, 15.0.2+)
+- TerraFirmaCraft (TFC), 3.2.23+ - `FireStartGateEnforcer` subscribes directly to TFC's own
+  `StartFireEvent` (at `EventPriority.HIGHEST`, so it always runs before TFC's own handler
+  regardless of mod load order) to close a real gate-bypass: TFC's fire-starting tools
+  (e.g. the Firestarter) ignite blocks via this event after a multi-second "charge", not
+  through a normal right-click interaction - `blocked_blocks.js`'s interaction gates never
+  see it. This is the one place this mod links against TFC's actual Java classes rather
+  than just referencing block ids as strings.
 
-Referenced by id in the KubeJS gating scripts (not a hard dependency, but the pack this
-mod targets includes them - without them the corresponding gate simply never triggers):
+Referenced by id in the KubeJS gating scripts (not a hard dependency otherwise, but the
+pack this mod targets includes them - without them the corresponding gate simply never
+triggers):
 
 - TerraFirmaCraft (TFC) - bloomery, blast furnace
 - GregTech CEu (GTCEU) - steam boilers, LV generators, High Temp Precision Fabricator

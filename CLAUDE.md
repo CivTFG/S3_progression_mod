@@ -33,6 +33,10 @@ java_mod/                        Forge mod (Gradle project)
     stage/ProgressionTiers.java  loads config/s3_progression_mod/progression.json; the
                                  shared source of truth for tiers/gates/team-lab-tracking
     stage/GatedItemEnforcer.java tick-based inventory scan enforcing "possession" gates
+    stage/FireStartGateEnforcer.java  HIGHEST-priority listener on TFC's own
+                                 StartFireEvent, closing the Firestarter gate-bypass (see
+                                 Pitfall #11) — the one place this mod links directly
+                                 against TFC's Java classes instead of just block-id strings
   src/main/resources/
     META-INF/mods.toml           dependency version ranges — see Pitfall #1
     assets/s3_progression_mod/   blockstates, models, textures, lang
@@ -74,7 +78,10 @@ README.md                        user-facing install/build instructions — keep
     (`blocked_blocks.js`). For entities (e.g. rockets, which aren't blocks), use
     `ItemEvents.entityInteracted` instead and check `event.target.type` manually — there is
     no `EntityEvents.rightClicked`, don't assume API symmetry with `BlockEvents` (this was a
-    real bug — see Pitfall #6).
+    real bug — see Pitfall #6). For `interaction` gates on TFC blocks specifically,
+    `FireStartGateEnforcer` (Java, see Pitfall #11) *also* re-checks the same gate list
+    against TFC's `StartFireEvent`, since fire-starting tools ignite blocks through that
+    event, not a normal right-click.
   - `placement`: `BlockEvents.placed` cancels it.
   - `possession`: **Java-side** (`GatedItemEnforcer`, a tick handler scanning inventories) —
     used where placement/interaction gating alone is bypassable once a player has
@@ -312,6 +319,33 @@ actually relevant before assuming a jar or config change reached anywhere real:
     add another blockstate property to an already-shipped block, expect this same class of
     bug on any world that already has the block placed, and test against an *existing* save
     with the block already placed, not just a fresh world.
+
+11. **A block-interaction gate only sees a normal right-click — a tool that fires its real
+    effect through its own custom event, decoupled from any specific right-click, bypasses
+    it entirely.** TFC's Firestarter doesn't ignite a block on right-click; the click just
+    starts a ~3.5s "charge" (`Item#onUseTick`, TFC's `FirestarterItem`), which re-raycasts
+    every tick and only fires TFC's own `@Cancelable` `StartFireEvent` once charging
+    completes — a player can start charging while looking at anything, walk up to a gated
+    Bloomery/Blast Furnace, and light it the moment the charge finishes, with
+    `BlockEvents.rightClicked` never having fired for that block at all. Found this by
+    decompiling `FirestarterItem` end to end (`onUseTick`'s bytecode literally calls
+    `StartFireEvent.startFire(level, raycastPos, state, ...)` in its final branch) rather
+    than guessing from the symptom (same "decompile, don't guess" method as Pitfall #6).
+    Fixed with a **Java** listener (`FireStartGateEnforcer`) at `EventPriority.HIGHEST` on
+    `StartFireEvent` directly — not KubeJS's generic `ForgeEvents.onEvent`, which always
+    registers at `EventPriority.NORMAL` (confirmed via decompiling the KubeJS jar itself)
+    and so can't guarantee running before TFC's own `StartFireEvent` handler
+    (`ForgeEventHandler#onFireStart`, also `NORMAL` — Forge skips a `NORMAL` listener
+    entirely once an earlier listener has already cancelled the event, so ordering between
+    two `NORMAL` listeners is registration-order-dependent and not something KubeJS's
+    generic hook lets you control). This is the first time this mod links against another
+    mod's actual Java classes (TFC is now a **mandatory** `mods.toml` dependency,
+    `[3.2.23,)`) rather than only referencing block ids as strings from KubeJS/JSON — worth
+    noticing if this pattern needs repeating for some other mod's tool later. **If another
+    gate ever gets bypassed the same way** (a tool with its own charge-up/custom-event
+    ignition path instead of a plain right-click), check whether the relevant mod fires a
+    custom Forge event for its actual effect, and consider the same Java-side
+    `EventPriority.HIGHEST` approach rather than trying to catch it in KubeJS.
 
 ## Known issues / unfinished work
 
