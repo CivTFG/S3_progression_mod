@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "TCT",
+    "TIT",
+    "TTT"
+  ],
+  "key": {
+    "T": { "item": "gtceu:titanium_plate" },
+    "C": { "item": "ae2:certus_quartz_crystal" },
+    "I": { "tag": "gtceu:circuits/iv" }
+  },
+  "result": {
+    "item": "s3_progression_mod:quantum_laboratory",
+    "count": 1
+  }
+}

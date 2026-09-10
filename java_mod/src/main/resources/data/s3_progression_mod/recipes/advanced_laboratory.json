@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "AGA",
+    "AMA",
+    "AAA"
+  ],
+  "key": {
+    "A": { "item": "gtceu:double_aluminium_plate" },
+    "G": { "item": "minecraft:glass_pane" },
+    "M": { "tag": "gtceu:circuits/mv" }
+  },
+  "result": {
+    "item": "s3_progression_mod:advanced_laboratory",
+    "count": 1
+  }
+}

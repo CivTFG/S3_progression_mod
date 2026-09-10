@@ -12,7 +12,11 @@ reach the next one (e.g. completing Bronze unlocks the bloomery needed to make I
   1-5 *different* categories is a valid craft, worth `2^(n-1)` research toward that age's
   running total (so 5 distinct items is worth far more than one at a time). The lab
   requires its chunk to be claimed by an FTB Team - an unclaimed lab will sit at 0
-  progress forever (the GUI shows a warning if so).
+  progress forever (the GUI shows a warning if so). Comes in three purely cosmetic
+  variants - Primitive, Advanced, and Quantum Laboratory - which behave identically; only
+  one laboratory *of any variant* can be the team's active one at a time (see
+  `CLAUDE.md` for exactly how that's tracked), so placing a second one of any skin while
+  the first is still active just gets you a non-functional decorative copy.
 - **Tiers unlock in order** - each tier has a research threshold; crossing it grants
   every online team member a GameStage (e.g. `bronze_unlocked`), and a login-sync keeps
   offline members caught up. A team can't start progressing tier N+1 until tier N is

@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PFP",
+    "PCP",
+    "PPP"
+  ],
+  "key": {
+    "P": { "tag": "minecraft:planks" },
+    "F": { "item": "tfc:powder/flux" },
+    "C": { "item": "tfc:metal/ingot/copper" }
+  },
+  "result": {
+    "item": "s3_progression_mod:laboratory",
+    "count": 1
+  }
+}

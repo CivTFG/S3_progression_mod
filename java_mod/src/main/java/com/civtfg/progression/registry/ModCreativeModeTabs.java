@@ -19,7 +19,9 @@ public final class ModCreativeModeTabs {
                     .icon(() -> new ItemStack(ModItems.LABORATORY_ITEM.get()))
                     .displayItems((parameters, output) -> {
                         output.accept(ModItems.LABORATORY_ITEM.get());
-                        int count = 1;
+                        output.accept(ModItems.ADVANCED_LABORATORY_ITEM.get());
+                        output.accept(ModItems.QUANTUM_LABORATORY_ITEM.get());
+                        int count = 3;
                         for (ModScienceItems.Age age : ModScienceItems.Age.values()) {
                             for (ModScienceItems.Category category : ModScienceItems.Category.values()) {
                                 output.accept(ModScienceItems.get(age, category).get());

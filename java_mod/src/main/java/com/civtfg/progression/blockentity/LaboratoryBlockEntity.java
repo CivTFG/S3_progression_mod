@@ -299,7 +299,14 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
     @Override
     public Component getDisplayName() {
-        return Component.translatable("block.s3_progression_mod.laboratory");
+        // Not a fixed "laboratory" key - this block entity is shared by all three
+        // laboratory variants (Primitive/Advanced/Quantum - the original block's registry
+        // name "laboratory" was kept as-is for save compatibility, only its displayed name
+        // changed to "Primitive Laboratory"), so the GUI title should reflect whichever one
+        // this actually is. Block#getName() already resolves to
+        // Component.translatable(getDescriptionId()) automatically, i.e. one of
+        // "block.s3_progression_mod.laboratory"/"...advanced_laboratory"/"...quantum_laboratory".
+        return getBlockState().getBlock().getName();
     }
 
     @Nullable

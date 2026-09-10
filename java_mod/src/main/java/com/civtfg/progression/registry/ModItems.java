@@ -14,4 +14,10 @@ public class ModItems {
 
     public static final RegistryObject<Item> LABORATORY_ITEM = ITEMS.register("laboratory",
             () -> new BlockItem(ModBlocks.LABORATORY.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> ADVANCED_LABORATORY_ITEM = ITEMS.register("advanced_laboratory",
+            () -> new BlockItem(ModBlocks.ADVANCED_LABORATORY.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> QUANTUM_LABORATORY_ITEM = ITEMS.register("quantum_laboratory",
+            () -> new BlockItem(ModBlocks.QUANTUM_LABORATORY.get(), new Item.Properties()));
 }

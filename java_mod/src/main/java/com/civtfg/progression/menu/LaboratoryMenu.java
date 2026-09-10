@@ -1,7 +1,6 @@
 package com.civtfg.progression.menu;
 
 import com.civtfg.progression.blockentity.LaboratoryBlockEntity;
-import com.civtfg.progression.registry.ModBlocks;
 import com.civtfg.progression.registry.ModMenuTypes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Inventory;
@@ -93,7 +92,11 @@ public class LaboratoryMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return stillValid(access, player, ModBlocks.LABORATORY.get());
+        // Not ModBlocks.LABORATORY specifically - this menu is shared by all three
+        // laboratory variants, so check against whichever block this particular
+        // blockEntity actually belongs to (reuses vanilla's own reach-distance check,
+        // Forge's reach-attribute-aware version of it, rather than reimplementing it).
+        return stillValid(access, player, blockEntity.getBlockState().getBlock());
     }
 
     @Override

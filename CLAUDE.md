@@ -107,9 +107,34 @@ README.md                        user-facing install/build instructions — keep
     `ResultSlot`).
 - **Laboratory active/decorative split**: only the *first* Laboratory placed in a team's
   claim is functional; every other one (unclaimed chunk, or a team that already has one) is
-  a decorative "out of order" copy — same block, `ACTIVE` blockstate property, same loot
-  table (always drops a normal placeable Laboratory item regardless of state). See Pitfall
+  a decorative "out of order" copy — same block, `ACTIVE` blockstate property. See Pitfall
   #4 for the exact bug this produced and how it's fixed now.
+- **Three cosmetic Laboratory variants** (`laboratory` aka "Primitive Laboratory" - kept its
+  original registry name for save compatibility, only its lang display name changed -
+  `advanced_laboratory`, `quantum_laboratory`): three separate `Block`/`BlockItem`
+  registrations, all just `new LaboratoryBlock(...)` with the same properties, sharing one
+  `BlockEntityType` (`Builder.of` takes valid-blocks as varargs). The "only one active lab"
+  flag lives on the **team** (`ProgressionTiers.hasLaboratory`), not per-block, so it
+  automatically applies across all three variants with zero extra logic - placing an
+  Advanced Laboratory while a Primitive one is already active just makes the Advanced one
+  the decorative copy, and vice versa. Each variant's own loot table drops itself (not a
+  shared/generic item) - unlike the single-item active/decorative case where a decorative
+  copy just drops a normal placeable item, since here each variant *is* its own distinct,
+  real item and collapsing them back to one on drop would be a real regression from the
+  player's perspective. Two things had to be generalized away from a hardcoded single block
+  when this was added - if a fourth variant is ever added, check both again:
+  - `LaboratoryMenu#stillValid` used to hardcode `ModBlocks.LABORATORY.get()`; now checks
+    `blockEntity.getBlockState().getBlock()` instead (reuses vanilla's own
+    `stillValid(ContainerLevelAccess, Player, Block)`, which is Forge's reach-attribute-aware
+    version, not a naive fixed-distance check - don't reimplement that math, just pass it
+    the right `Block`).
+  - `LaboratoryBlockEntity#getDisplayName` used to hardcode the `"...laboratory"`
+    translation key; now returns `getBlockState().getBlock().getName()` (resolves to
+    `Component.translatable(getDescriptionId())` automatically for whichever variant it is).
+  Placeholder textures for the two new variants are the original Laboratory textures with a
+  flat color tint applied (blue for Advanced, violet for Quantum) purely so the three are
+  visually distinguishable at all before real art replaces them - same "functional
+  placeholder, not final art" situation as the ACTIVE-state animated textures.
 - **Science items**: `ModScienceItems` registers 5 items (one per category) × 8 ages
   (`Age` enum) = 40 items, named `<age>_<category>_science`. `ModScienceItems.register()`
   fails fast at startup if `Age`/`Category` don't exactly match `progression.json`'s
@@ -419,7 +444,11 @@ actually relevant before assuming a jar or config change reached anywhere real:
 - Texture animation for the active Laboratory (`laboratory_top_active.png`,
   `laboratory_side_active.png`) is currently a **placeholder** (a generated brightness-pulse
   effect over the static texture) — the user said they want to paint the real art
-  themselves; don't treat the current frames as final.
+  themselves; don't treat the current frames as final. Same applies to the Advanced/Quantum
+  Laboratory variants' textures (all 10 `advanced_laboratory_*`/`quantum_laboratory_*` files)
+  - these are just the original Laboratory textures with a flat color tint (blue/violet)
+  applied programmatically, purely so the three variants are visually distinguishable at
+  all right now.
 
 ## Where to look first for anything not covered here
 

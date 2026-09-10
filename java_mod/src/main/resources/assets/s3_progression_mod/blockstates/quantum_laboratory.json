@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "active=true": { "model": "s3_progression_mod:block/quantum_laboratory_active" },
+    "active=false": { "model": "s3_progression_mod:block/quantum_laboratory" }
+  }
+}
