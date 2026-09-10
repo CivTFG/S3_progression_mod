@@ -47,6 +47,16 @@ BLOCKED_BLOCKS_GATES.forEach(gate => {
             }
         }))
     } else if (gate.mechanism === 'placement') {
+        // BlockEvents.placed only fires *after* the block is already set into the world -
+        // KubeJS/Architectury build it on Forge's EntityPlaceEvent, whose "cancel" is a
+        // revert (set the position back to what it was), not a true pre-placement veto.
+        // On singleplayer (client+server, no network round trip) that place-then-revert
+        // is imperceptible; on a real dedicated server the extra round trip (place -> event
+        // -> revert -> correction packet back to the client) is visibly slow (reported:
+        // several seconds). Kept as-is below since it's still needed as an
+        // automation-proof backstop (a machine placing the block bypasses any check that
+        // only runs on a player's own right-click), but see the pre-emptive check further
+        // down for the fast path that avoids ever setting the block in the first place.
         gate.blocks.forEach(id => BlockEvents.placed(id, event => {
             if (!event.player.stages.has(gate.stageId)) {
                 event.player.tell(gate.message)
@@ -69,3 +79,31 @@ BLOCKED_BLOCKS_GATES.forEach(gate => {
         })
     }
 })
+
+// Fast pre-emptive path for "placement" gates: cancelling a right-click on ANY block while
+// holding a gated block item, before the placement can ever happen, so there's no
+// place-then-revert round trip to be slow on a dedicated server (see the comment on the
+// "placement" branch above). This intentionally checks the held item rather than a specific
+// target block, since we don't know in advance which position the new block would land on -
+// the tradeoff is that right-clicking some OTHER block (e.g. a chest) while merely holding a
+// gated item in hand also gets cancelled, even though nothing would have been placed. That's
+// judged an acceptable rare inconvenience (switch hands or empty your hand and try again)
+// against the confirmed, worse alternative of multi-second server lag on every real
+// placement attempt. Registered with no id filter (BlockEvents.rightClicked supports that -
+// it's an "extra", not a required argument) since it must fire for every block the player
+// might be placing against, not just one specific target block.
+const BLOCKED_BLOCKS_PLACEMENT_GATES = BLOCKED_BLOCKS_GATES.filter(gate => gate.mechanism === 'placement')
+
+if (BLOCKED_BLOCKS_PLACEMENT_GATES.length > 0) {
+    BlockEvents.rightClicked(event => {
+        const heldItemId = event.item.id
+        for (let i = 0; i < BLOCKED_BLOCKS_PLACEMENT_GATES.length; i++) {
+            const gate = BLOCKED_BLOCKS_PLACEMENT_GATES[i]
+            if (gate.blocks.indexOf(heldItemId) !== -1 && !event.player.stages.has(gate.stageId)) {
+                event.player.tell(gate.message)
+                event.cancel()
+                return
+            }
+        }
+    })
+}
