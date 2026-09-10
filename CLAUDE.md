@@ -32,13 +32,24 @@ java_mod/                        Forge mod (Gradle project)
              ModMenuTypes.java, ModCreativeModeTabs.java
     stage/ProgressionTiers.java  loads config/s3_progression_mod/progression.json; the
                                  shared source of truth for tiers/gates/team-lab-tracking
-    stage/GatedItemEnforcer.java tick-based inventory scan enforcing "possession" gates
+    stage/GatedItemEnforcer.java tick-based inventory scan enforcing "possession" gates;
+                                 also exposes lockedMessage(Player, ItemStack), the single
+                                 check both this sweep and the mixins below share
     stage/FireStartGateEnforcer.java  HIGHEST-priority listener on TFC's own
                                  StartFireEvent, closing the Firestarter gate-bypass (see
                                  Pitfall #11) — the one place this mod links directly
                                  against TFC's Java classes instead of just block-id strings
+    mixin/CraftingLockMixin.java        server-side: cancels taking a gated item out of a
+                                 vanilla ResultSlot the instant it's clicked (possession
+                                 gates only) - pre-empts GatedItemEnforcer's up-to-1s sweep
+                                 delay for the common "craft it, grab it" case. Ported from
+                                 the sibling CivTFG-Progression project - see Pitfall #12
+    mixin/CraftingLockScreenMixin.java   client-side mirror of the above (same check, so
+                                 the client never shows the item moving before a server
+                                 correction reverts it)
   src/main/resources/
     META-INF/mods.toml           dependency version ranges — see Pitfall #1
+    s3_progression_mod.mixins.json   Mixin config - see Pitfall #12 for the setup gotchas
     assets/s3_progression_mod/   blockstates, models, textures, lang
     data/s3_progression_mod/     loot table + STATIC per-item crafting recipes — see
                                  Pitfall #2, this is important and easy to miss
@@ -86,6 +97,14 @@ README.md                        user-facing install/build instructions — keep
   - `possession`: **Java-side** (`GatedItemEnforcer`, a tick handler scanning inventories) —
     used where placement/interaction gating alone is bypassable once a player has
     automation capable of placing blocks or acquiring items without the gated action firing.
+    The tick sweep alone has a real gap though: up to `CHECK_INTERVAL_TICKS` (1s) between a
+    gated item being crafted and it actually getting stripped, during which a player can
+    grab it from the crafting result slot and, on a real server, do something with it before
+    the sweep catches up. `CraftingLockMixin`/`CraftingLockScreenMixin` close that
+    specific gap by intercepting the result-slot click itself (see Pitfall #12) - the tick
+    sweep still runs as the backstop for anything that doesn't go through a vanilla-style
+    crafting result slot (dispensers, GTCEU machine output slots, etc., none of which are
+    `ResultSlot`).
 - **Laboratory active/decorative split**: only the *first* Laboratory placed in a team's
   claim is functional; every other one (unclaimed chunk, or a team that already has one) is
   a decorative "out of order" copy — same block, `ACTIVE` blockstate property, same loot
@@ -346,6 +365,37 @@ actually relevant before assuming a jar or config change reached anywhere real:
     ignition path instead of a plain right-click), check whether the relevant mod fires a
     custom Forge event for its actual effect, and consider the same Java-side
     `EventPriority.HIGHEST` approach rather than trying to catch it in KubeJS.
+
+12. **Mixin infrastructure was added for the first time for `CraftingLockMixin`/
+    `CraftingLockScreenMixin`** (ported from a sibling project, `CivTFG-Progression` at
+    `C:\Users\erikp\Desktop\Civ TFG\CivTFG-Progression` - its own `CraftingLockMixin.java`/
+    `CraftingLockScreenMixin.java`/`*.mixins.json` are the reference implementation this was
+    cross-checked against, method-signature-for-method-signature, before writing anything).
+    Two gotchas confirmed by directly inspecting that sibling project's own build:
+    - **A mixin only actually loads from a *built* jar if `MixinConfigs` is set in the jar
+      manifest.** Without it, the mixin still works in a dev environment (because the
+      `-mixin.config=...` run argument covers that), which makes the bug easy to miss until
+      someone runs the real, packaged jar. Confirmed CivTFG-Progression's own
+      `build.gradle` is missing exactly this line - deliberately not repeated here (see
+      `build.gradle`'s `jar` task manifest block).
+    - The Mixin Gradle plugin (`org.spongepowered.mixin` `0.7.38`) needs: the plugin
+      declaration, a `mixin { add sourceSets.main, "<modid>.refmap.json"; config
+      "<modid>.mixins.json" }` block, `-mixin.config=...` args on every run config
+      (client/server/gameTestServer/data - miss one and mixins silently don't apply for
+      that run type only, easy to not notice since e.g. `data` runs rarely touch anything
+      mixin-relevant), and `annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'`.
+      After building, verify the refmap actually resolved real method names (`unzip -p
+      ...jar s3_progression_mod.refmap.json` - a wrong `@Inject(method = "...")` name/
+      signature shows up here as a resolution failure at compile time, not a silent runtime
+      no-op, so checking this after every build is cheap insurance).
+    - `AbstractContainerMenu#clicked(int, int, ClickType, Player)` and
+      `AbstractContainerScreen#slotClicked(Slot, int, int, ClickType)` were both verified
+      against the actual decompiled MC 1.20.1 classes before trusting the ported code (same
+      "decompile, don't guess" method as Pitfalls #6 and #11).
+    - This only covers vanilla-style `ResultSlot`s (crafting table and similar). GTCEU
+      machine output slots are a different `Slot` subclass entirely and this mixin never
+      sees them - `GatedItemEnforcer`'s tick sweep is still necessary as the backstop for
+      those, this mixin is a latency fix for the common case, not a full replacement.
 
 ## Known issues / unfinished work
 

@@ -20,7 +20,10 @@ reach the next one (e.g. completing Bronze unlocks the bloomery needed to make I
 - **Gated machines** - one (multi-)block per tier transition is locked until the team
   holds that tier's stage: interaction gates (can't right-click/use it), placement gates
   (can't place it), or possession gates (Java-side inventory scan strips the item outright
-  - used where placement/interaction alone could be bypassed by automation).
+  - used where placement/interaction alone could be bypassed by automation). Possession
+  gates also get an instant assist via Mixin (`CraftingLockMixin`/`CraftingLockScreenMixin`):
+  a gated item can't even be taken out of a normal crafting-table result slot, instead of
+  waiting up to a second for the inventory sweep to strip it back out.
 - **Single source of truth** - `config/s3_progression_mod/progression.json` defines tier
   order, thresholds, gamestage ids, and the gated-machine list. Both the Java mod and
   every KubeJS script read this one file at runtime; rebalancing tiers/thresholds/gates

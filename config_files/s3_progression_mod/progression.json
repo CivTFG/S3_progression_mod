@@ -15,6 +15,7 @@
     { "requiresTier": "BRONZE", "mechanism": "interaction", "blocks": ["tfc:bloomery"], "message": "You don't know how to build a bloomery yet." },
     { "requiresTier": "IRON", "mechanism": "interaction", "blocks": ["tfc:blast_furnace"], "message": "You don't know how to build a blast furnace yet." },
     { "requiresTier": "STEEL", "mechanism": "placement", "blocks": ["gtceu:hp_steam_solid_boiler", "gtceu:hp_steam_liquid_boiler", "gtceu:hp_steam_solar_boiler"], "message": "You don't know how to build this yet." },
+    { "requiresTier": "STEEL", "mechanism": "possession", "blocks": ["gtceu:hp_steam_solid_boiler", "gtceu:hp_steam_liquid_boiler", "gtceu:hp_steam_solar_boiler"], "message": "You don't know how to build this yet." },
     { "requiresTier": "STEAM", "mechanism": "possession", "blocks": ["gtceu:lv_steam_turbine", "gtceu:lv_gas_turbine", "gtceu:lv_combustion"], "message": "You don't know how to build this yet." },
     { "requiresTier": "STEAM", "mechanism": "placement", "blocks": ["gtceu:lv_steam_turbine", "gtceu:lv_gas_turbine", "gtceu:lv_combustion"], "message": "You don't know how to build this yet." },
     { "requiresTier": "LV", "mechanism": "interaction", "blocks": ["tfg:high_temp_precision_fabricator"], "message": "You don't know how to use this yet." },

@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.civtfg.progression.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "s3_progression_mod.refmap.json",
+
+  "mixins": [
+    "CraftingLockMixin"
+  ],
+
+  "client": [
+    "CraftingLockScreenMixin"
+  ],
+
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

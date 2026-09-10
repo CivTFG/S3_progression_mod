@@ -10,6 +10,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.ForgeRegistries;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -51,6 +52,39 @@ public final class GatedItemEnforcer {
                 player.displayClientMessage(Component.literal(gate.message()), false);
             }
         }
+    }
+
+    /**
+     * @return the message to show if {@code stack} is currently locked for {@code player}
+     * (a "possession" gate whose required tier that player doesn't have yet), or
+     * {@code null} if the stack is allowed. Shared by the tick-based sweep above and
+     * {@link com.civtfg.progression.mixin.CraftingLockMixin}/
+     * {@link com.civtfg.progression.mixin.CraftingLockScreenMixin} (which pre-empt taking a
+     * gated item out of a vanilla-style crafting result slot the instant it's clicked,
+     * instead of waiting up to {@link #CHECK_INTERVAL_TICKS} for the next sweep) - single
+     * source of truth stays {@code progression.json} either way.
+     */
+    @Nullable
+    public static String lockedMessage(Player player, ItemStack stack) {
+        if (stack.isEmpty()) {
+            return null;
+        }
+        String id = ForgeRegistries.ITEMS.getKey(stack.getItem()).toString();
+        for (ProgressionTiers.Gate gate : ProgressionTiers.GATES) {
+            if (!"possession".equals(gate.mechanism())) {
+                continue;
+            }
+            String stageId = ProgressionTiers.stageIdFor(gate.requiresTier());
+            if (stageId == null || GameStageHelper.hasStage(player, stageId)) {
+                continue;
+            }
+            for (String blockedId : gate.blocks()) {
+                if (blockedId.equals(id)) {
+                    return gate.message();
+                }
+            }
+        }
+        return null;
     }
 
     private static boolean stripGatedItems(Inventory inventory, String[] blockedIds) {
