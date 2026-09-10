@@ -42,6 +42,17 @@ public final class FireStartGateEnforcer {
             return;
         }
 
+        // StartFireEvent can also be fired by a Dispenser (TFC's DispenserBehaviors), with no
+        // player involved at all. This gate only exists to catch a *player* bypassing an
+        // interaction gate via the Firestarter tool (Pitfall #11) - a dispenser isn't a player
+        // bypassing anything, so there's nothing to enforce here. Confirmed via a real crash:
+        // player was null, and the unconditional player.displayClientMessage(...) below threw
+        // an NPE that crashed the whole world (Exception ticking world).
+        Player player = event.getPlayer();
+        if (player == null) {
+            return;
+        }
+
         String blockId = String.valueOf(ForgeRegistries.BLOCKS.getKey(event.getState().getBlock()));
 
         for (ProgressionTiers.Gate gate : ProgressionTiers.GATES) {
@@ -49,7 +60,6 @@ public final class FireStartGateEnforcer {
                 continue;
             }
             String stageId = ProgressionTiers.stageIdFor(gate.requiresTier());
-            Player player = event.getPlayer();
             if (stageId == null || GameStageHelper.hasStage(player, stageId)) {
                 continue;
             }
