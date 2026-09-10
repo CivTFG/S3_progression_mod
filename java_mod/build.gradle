@@ -168,12 +168,13 @@ dependencies {
     
     implementation fg.deobf(files("libs/kubejs-forge-2001.6.5-build.26.jar"))
     implementation fg.deobf(files("libs/rhino-forge-2001.2.3-build.10.jar"))
-    implementation fg.deobf(files("libs/architectury-forge-9.2.14.jar")) // match the filename you actually download
+    implementation fg.deobf(files("libs/architectury-9.2.14-forge.jar")) // filename was "architectury-forge-9.2.14.jar" here before - didn't match the actual file in libs/, so files(...) silently resolved to an empty collection and architectury was never actually on the classpath. This is why `./gradlew runData` failed with "Mod ID: 'architectury' ... Actual version: [MISSING]" for ftbchunks/kubejs/ftblibrary/ftbteams (2026-09-10).
 
     implementation fg.deobf(files("libs/ftb-library-forge-2001.2.13.jar"))
     implementation fg.deobf(files("libs/ftb-teams-forge-2001.3.2.jar"))
     implementation fg.deobf(files("libs/ftb-chunks-forge-2001.3.8.jar"))
     implementation fg.deobf(files("libs/GameStages-Forge-1.20.1-15.0.2.jar"))
+    implementation fg.deobf(files("libs/Bookshelf-Forge-1.20.1-20.2.15.jar")) // GameStages' own hard dependency (mods.toml requires [20,)) - without this, runData/runServer/runClient fail with "Mod ID: 'bookshelf' ... [MISSING]"
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
