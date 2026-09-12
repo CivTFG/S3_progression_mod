@@ -165,9 +165,16 @@ public final class ProgressionTiers {
     /**
      * @return whether {@code team} is currently allowed to make progress on
      * {@code tierKey} - true for the first tier in sequence, otherwise only once the
-     * immediately preceding tier is already unlocked. Unknown tier keys are rejected.
+     * immediately preceding tier is already unlocked, AND only as long as {@code tierKey}
+     * itself isn't already unlocked. Without that last check, a team could keep crafting
+     * (and consuming) a tier's science items forever after already crossing its threshold -
+     * the preceding-tier check alone only ever guarded against jumping AHEAD, not against
+     * continuing to feed an already-finished tier. Unknown tier keys are rejected.
      */
     public static boolean canCraftTier(Team team, String tierKey) {
+        if (isUnlocked(team, tierKey)) {
+            return false;
+        }
         for (int i = 0; i < TIERS.length; i++) {
             if (TIERS[i].key().equals(tierKey)) {
                 return i == 0 || isUnlocked(team, TIERS[i - 1].key());

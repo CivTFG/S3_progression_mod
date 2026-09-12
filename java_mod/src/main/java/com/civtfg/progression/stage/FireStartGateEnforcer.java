@@ -42,17 +42,17 @@ public final class FireStartGateEnforcer {
             return;
         }
 
-        // StartFireEvent can also be fired by a Dispenser (TFC's DispenserBehaviors), with no
-        // player involved at all. This gate only exists to catch a *player* bypassing an
-        // interaction gate via the Firestarter tool (Pitfall #11) - a dispenser isn't a player
-        // bypassing anything, so there's nothing to enforce here. Confirmed via a real crash:
-        // player was null, and the unconditional player.displayClientMessage(...) below threw
-        // an NPE that crashed the whole world (Exception ticking world).
+        // StartFireEvent can also be fired by a Dispenser (TFC's DispenserBehaviors - both the
+        // Firestarter and a plain dispensed Flint and Steel route through this same event, see
+        // DispenserBehaviors$5/TFC_FLINT_AND_STEEL_BEHAVIOR), with no player involved at all.
+        // A previous fix returned early here whenever player was null - that stopped a real
+        // crash (unconditionally calling player.displayClientMessage(...) NPE'd - "Exception
+        // ticking world"), but it also meant a dispenser could freely light a gated
+        // Bloomery/Blast Furnace, since nothing was enforced at all in that case. A dispenser
+        // has no GameStage to hold, so the correct behavior is to always treat it as "not
+        // unlocked" and cancel - only the player-facing message is conditional on a player
+        // actually being present.
         Player player = event.getPlayer();
-        if (player == null) {
-            return;
-        }
-
         String blockId = String.valueOf(ForgeRegistries.BLOCKS.getKey(event.getState().getBlock()));
 
         for (ProgressionTiers.Gate gate : ProgressionTiers.GATES) {
@@ -60,11 +60,16 @@ public final class FireStartGateEnforcer {
                 continue;
             }
             String stageId = ProgressionTiers.stageIdFor(gate.requiresTier());
-            if (stageId == null || GameStageHelper.hasStage(player, stageId)) {
+            if (stageId == null) {
+                continue;
+            }
+            if (player != null && GameStageHelper.hasStage(player, stageId)) {
                 continue;
             }
             event.setCanceled(true);
-            player.displayClientMessage(Component.literal(gate.message()), false);
+            if (player != null) {
+                player.displayClientMessage(Component.literal(gate.message()), false);
+            }
             return;
         }
     }

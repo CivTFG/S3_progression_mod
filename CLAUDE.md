@@ -84,15 +84,19 @@ README.md                        user-facing install/build instructions — keep
   stage onto every online team member (with a login-sync for offline members) — see
   `progression_listener.js` / `progression_commands.js`.
 - **Gates** (`progression.json`'s `"gates"` array, one gating (multi-)block per tier
-  transition): three mechanisms —
+  transition): four mechanisms —
   - `interaction`: KubeJS `BlockEvents.rightClicked` cancels the interaction
     (`blocked_blocks.js`). For entities (e.g. rockets, which aren't blocks), use
     `ItemEvents.entityInteracted` instead and check `event.target.type` manually — there is
     no `EntityEvents.rightClicked`, don't assume API symmetry with `BlockEvents` (this was a
     real bug — see Pitfall #6). For `interaction` gates on TFC blocks specifically,
     `FireStartGateEnforcer` (Java, see Pitfall #11) *also* re-checks the same gate list
-    against TFC's `StartFireEvent`, since fire-starting tools ignite blocks through that
-    event, not a normal right-click.
+    against TFC's `StartFireEvent`, since fire-starting tools (and even a plain dispensed
+    Flint and Steel — see Pitfall #13) ignite blocks through that event, not a normal
+    right-click.
+  - `gtceu_voltage_interaction`: same idea as `interaction`, but for "every GTCEU machine of
+    voltage tier X" at once instead of a fixed `blocks` list — see Pitfall #14 for how this
+    avoids hand-maintaining a block-id list per voltage tier.
   - `placement`: `BlockEvents.placed` cancels it.
   - `possession`: **Java-side** (`GatedItemEnforcer`, a tick handler scanning inventories) —
     used where placement/interaction gating alone is bypassable once a player has
@@ -135,10 +139,15 @@ README.md                        user-facing install/build instructions — keep
   flat color tint applied (blue for Advanced, violet for Quantum) purely so the three are
   visually distinguishable at all before real art replaces them - same "functional
   placeholder, not final art" situation as the ACTIVE-state animated textures.
-- **Science items**: `ModScienceItems` registers 5 items (one per category) × 8 ages
-  (`Age` enum) = 40 items, named `<age>_<category>_science`. `ModScienceItems.register()`
+- **Science items**: `ModScienceItems` registers 5 items (one per category) × 11 ages
+  (`Age` enum) = 55 items, named `<age>_<category>_science`. `ModScienceItems.register()`
   fails fast at startup if `Age`/`Category` don't exactly match `progression.json`'s
   tiers/categories — keep these in lockstep.
+- **A tier's science items stop being craftable once that tier is itself unlocked** (not
+  just gated against jumping ahead) — see Pitfall #13. `ProgressionTiers.canCraftTier`
+  is the single enforcement point (`LaboratoryBlockEntity.getMatchingScience` rejects
+  before anything is consumed), so a team can never waste items feeding an already-finished
+  tier or an unreached future one.
 
 ## Configuration
 
@@ -151,19 +160,26 @@ one file at runtime; edit it, not hardcoded copies)
   "categories": ["mining", "farming", "production", "exploration", "challenge"],
   "tiers": [
     { "key": "BRONZE", "displayName": "Bronze Age", "stageId": "bronze_unlocked", "threshold": 3 },
-    // ... IRON, STEEL, STEAM, LV, HV, EV, IV — MV was deliberately removed, see Pitfall #7
+    // ... IRON, STEEL, STEAM, LV, MV, HV, MOON, EV, MARS, IV — MV was removed once (Pitfall
+    // #8) and reintroduced later once real gating blocks existed for it (Pitfall #14);
+    // MOON/MARS are tiers in their own right too, not just rocket labels
   ],
   "gates": [
     { "requiresTier": "BRONZE", "mechanism": "interaction", "blocks": ["tfc:bloomery"], "message": "..." },
-    // mechanism: "interaction" | "placement" | "possession"; add "entity": true for
-    // entity-type blocks (rockets); "blocks" is an array of ids
+    { "requiresTier": "STEAM", "mechanism": "gtceu_voltage_interaction", "voltage": "LV", "message": "..." },
+    // mechanism: "interaction" | "placement" | "possession" | "gtceu_voltage_interaction";
+    // add "entity": true for entity-type blocks (rockets); "blocks" is an array of ids
+    // (not used by "gtceu_voltage_interaction", which uses "voltage" instead - see Pitfall #14)
   ]
 }
 ```
-Current gate list: bloomery (BRONZE), blast furnace (IRON), steam boilers (STEEL,
-placement), LV generators (STEAM, possession), High Temp Precision Fabricator (LV,
-interaction), moon rocket (HV, entity), mars rocket (EV, entity). Nothing gates IV yet —
-it exists for future (0.14+) content.
+Current gate list: bloomery (BRONZE, interaction), blast furnace (IRON, interaction), steam
+boilers (STEEL, placement+possession), all LV GTCEU machines (STEAM,
+`gtceu_voltage_interaction`), all MV GTCEU machines (LV), all HV GTCEU machines (MV), moon
+rocket (HV, entity), all EV GTCEU machines (MOON), mars rocket (EV, entity), all IV GTCEU
+machines (MARS). The old single-block "High Temp Precision Fabricator" LV gate and the old
+STEAM-tier possession/placement gate on the three LV generator blocks were both removed -
+subsumed by the generic "all LV machines" gate (see Pitfall #14).
 
 ### `science_recipes.js` (data-driven recipe generator)
 
@@ -250,22 +266,26 @@ actually relevant before assuming a jar or config change reached anywhere real:
 
 2. **Two parallel, overlapping recipe systems exist for science items — reconcile before
    touching recipes.** `java_mod/src/main/resources/data/s3_progression_mod/recipes/*.json`
-   are **static** Forge datapack recipes, one per age×category (45 files: all 8 real tiers
-   plus 5 stale `mv_*` ones), seemingly an early placeholder set generated before
-   `science_recipes.js` existed. `science_recipes.js` is the newer, actively-maintained,
-   data-driven generator — but it currently only covers the `mining` category. This means:
+   are **static** Forge datapack recipes, one per age×category, seemingly an early
+   placeholder set generated before `science_recipes.js` existed. `science_recipes.js` is
+   the newer, actively-maintained, data-driven generator — but it currently only covers the
+   `mining` category. This means:
    - For **mining**, both the old static recipes *and* the new `science_recipes.js` ones
      are simultaneously active for the same output items (e.g. `bronze_mining_science` can
      currently be crafted via the old hardcoded "2x bronze ingot + flint + paper" recipe
      *and* via 5 separate newer recipes) — almost certainly unintentional duplication.
    - For **farming/production/exploration/challenge**, the static files are the *only*
      working recipes right now (mining is the only category "upgraded" so far).
-   - The 5 `mv_*` static files (`mv_challenge_science.json` etc.) are **currently broken**
-     in production — confirmed via a real server log: `Failed to parse recipe
-     's3_progression_mod:mv_exploration_science...' ItemStack 'result' can't be empty!`,
-     because `ModScienceItems.Age` no longer has `MV` (removed deliberately, see Pitfall
-     #7), so the result item literally doesn't exist. These 5 files (and their matching
-     `models/item/mv_*.json`) should just be deleted.
+   - The 5 `mv_*` static files (`mv_challenge_science.json` etc.) were **broken** for a
+     while (`ModScienceItems.Age` had no `MV`, so the result item didn't exist - see
+     Pitfall #7/#8) - now that `MV` is back (Pitfall #14), they load again, but their
+     ingredients (`tfg:mv_universal_circuit`) referenced an item that no longer exists
+     anywhere in the pack (confirmed: not in any mod jar's model paths or lang files) and
+     have been swapped to `#gtceu:circuits/mv` instead, the same tag already used by
+     `advanced_laboratory.json`'s recipe. **`MOON`/`MARS` have items registered
+     (`moon_*_science`/`mars_*_science`, with placeholder textures - see Known Issues) but
+     no recipes of any kind yet** - crafting them is intentionally out of scope until
+     someone designs them.
    Before doing more recipe work: decide whether to (a) delete the static recipes for
    categories `science_recipes.js` already covers, (b) migrate the remaining 4 categories'
    static recipes into `science_recipes.js`'s format (probably the right call, for
@@ -333,13 +353,15 @@ actually relevant before assuming a jar or config change reached anywhere real:
    out to be the Rhino spread bug above; don't assume it's always the stale-load issue,
    check timestamps in the log to rule it in/out).
 
-8. **MV tier was deliberately removed from progression** (commit "Removed MV stage..."):
-   the gating blocks naturally land at the start of LV, middle of MV, middle of HV, middle
-   of EV, so inserting one more gate between mid-MV and mid-HV wasn't good pacing, and
-   there's no good candidate block to gate right before MV either. `ModScienceItems.Age`
-   only has 8 entries now (BRONZE, IRON, STEEL, STEAM, LV, HV, EV, IV) — **do not** add MV
-   back without also fully re-threading the gate spacing question. IV is intentionally kept
-   even though nothing gates it yet — it's prep for 0.14+ content, not dead weight.
+8. **MV tier was deliberately removed from progression, then reintroduced later** (commit
+   "Removed MV stage..."; reintroduced alongside Pitfall #14). It was originally removed
+   because the gating blocks of the time naturally landed at the start of LV, middle of MV,
+   middle of HV, middle of EV, so inserting one more gate between mid-MV and mid-HV wasn't
+   good pacing, and there was no good candidate block to gate right before MV either. That
+   blocker is what Pitfall #14's generic per-voltage-tier gate solves - "all MV machines"
+   and "all HV machines" are real, well-paced gates that didn't exist back then. If you're
+   ever tempted to remove a tier again because "there's no good gate for it", check whether
+   a generic mechanism (like #14) could manufacture one before deciding there's truly none.
 
 9. **A game crash from an unrelated mod bug can look like "my change broke it" — always
    read the actual crash report / log, don't guess from symptoms.** A reported "server
@@ -422,16 +444,80 @@ actually relevant before assuming a jar or config change reached anywhere real:
       sees them - `GatedItemEnforcer`'s tick sweep is still necessary as the backstop for
       those, this mixin is a latency fix for the common case, not a full replacement.
 
+13. **A "must not have advanced past X" check needs its own explicit guard - checking only
+    "the previous step is done" doesn't imply "this step isn't ALSO already done".**
+    `ProgressionTiers.canCraftTier(team, tierKey)` only checked that the *preceding* tier
+    was already unlocked, which correctly blocks jumping ahead to a future tier, but says
+    nothing about whether `tierKey` itself was already crossed. Since the first tier's
+    check was hardcoded `true` with no condition at all, a team that had long since unlocked
+    Bronze could keep crafting (and consuming) `bronze_*_science` items forever, for zero
+    effect. Fixed by adding an explicit `if (isUnlocked(team, tierKey)) return false;` at
+    the top - don't assume a chain of "is the previous step done" checks automatically rules
+    out "is this exact step already done", they're different questions.
+
+14. **A KubeJS script can reflectively reach into ANOTHER mod's Java classes via
+    `Java.loadClass(...)` without that mod becoming a compile-time dependency of this one** -
+    used to replace a hand-maintained, per-voltage-tier GTCEU block-id list with one generic
+    check. The ask was "block right-click on every GTCEU LV/MV/HV/EV/IV machine", which
+    would otherwise mean enumerating ~50+ block ids per voltage tier by hand (and
+    re-enumerating on every GTCEU update). Confirmed via `javap` against the real
+    `gtceu-*.jar`: every GTCEU machine block (hatches/buses/casings included - genuinely
+    "every" machine, not just the simple single-block ones) is an instance of
+    `com.gregtechceu.gtceu.api.block.MetaMachineBlock`, whose `getDefinition().getTier()`
+    returns an `int` that indexes directly into `com.gregtechceu.gtceu.api.GTValues.VN`
+    (`["ULV","LV","MV","HV","EV","IV","LuV",...]`) to get the voltage name. `blocked_blocks.js`
+    loads both classes once via `Java.loadClass(...)` (same mechanism already used for this
+    mod's own `ProgressionTiers`) and does `MetaMachineBlock.isInstance(block)` +
+    `GTValues.VN[...]` inside a single `BlockEvents.rightClicked` with no id filter, checked
+    against a new `"gtceu_voltage_interaction"` gate mechanism (`requiresTier` + `voltage`
+    instead of a `blocks` list). This is *still* only a soft/"by id" reference to GTCEU (no
+    `libs/` jar, no `mods.toml` entry) - KubeJS's class filter only denies `java.io`/
+    `java.nio`, not other mods' classes. **If `Java.loadClass` for some other mod's class
+    ever does get denied**, the fallback is a real Java-side listener (vendored jar +
+    `mods.toml` dependency, same pattern as TFC in Pitfall #11) instead. This mechanism was
+    used to reintroduce MV as a real tier (see Pitfall #8) and to add MOON/MARS - "all LV/MV/
+    HV/EV/IV machines" gates STEAM/LV/MV/MOON/MARS tiers respectively, and it *replaced* two
+    older, more specific gates entirely: the single-block LV `tfg:high_temp_precision_fabricator`
+    interaction gate, and the STEAM-tier possession+placement gate on the three specific LV
+    generator blocks (`gtceu:lv_steam_turbine`/`lv_gas_turbine`/`lv_combustion`) - both are
+    gone from `progression.json`, fully subsumed by the generic "all LV machines" gate.
+    Not yet live-tested in-game (needs an actual GTCEU machine right-clicked before/after
+    the relevant tier) - if `Java.loadClass` unexpectedly throws for either GTCEU class,
+    check the exact ClassFilter error in the log first before assuming the fallback is
+    needed.
+
+15. **A gate-bypass fix that returns early on missing context (like a null `Player`) can
+    silently stop enforcing the gate entirely, instead of just skipping the parts of the
+    fix that need that context.** The original fix for the FireStartGateEnforcer NPE crash
+    (a dispenser-fired `StartFireEvent` has no player) returned immediately whenever
+    `player == null` - that stopped the crash, but it also meant a dispenser dispensing a
+    plain Flint and Steel (TFC's `DispenserBehaviors$5`/`TFC_FLINT_AND_STEEL_BEHAVIOR`,
+    confirmed via the same `javap` method as Pitfall #11 - it calls `StartFireEvent.startFire`
+    directly, same chokepoint as the Firestarter) could light a gated Bloomery/Blast Furnace
+    completely unchecked. The correct shape for this kind of fix: separate "should this be
+    cancelled" (always evaluated, a dispenser has no stage so it never counts as unlocked)
+    from "who do I tell about it" (conditional on a player actually existing) - never let a
+    null-check for the second thing skip the first.
+
 ## Known issues / unfinished work
 
 - **Recipe system duplication and gaps** (Pitfall #2) — the biggest open item. Static
   per-category recipe jsons vs. `science_recipes.js`; only `mining` is designed in the new
-  system; `mv_*` static recipes are actively broken in production logs right now.
-- **Farming/production/exploration/challenge science recipes were never designed.** The
+  system.
+- **Farming/production/exploration/challenge science recipes were never designed**, and
+  **MOON/MARS have no recipes in any system yet** (items exist, nothing crafts them). The
   original design intent (from the user): farming cheap-but-picky (tailored to specific
   crops per tier), production resource-expensive-but-automatable (GTCEU/Create machines —
   motors, conveyors, circuits), exploration needs items from across biomes/dimensions,
   challenge needs rare/hard-to-get-early items at the edge of the unlocked age.
+- **The new `gtceu_voltage_interaction` gate mechanism (Pitfall #14) hasn't been live-tested
+  in-game yet** — needs someone to right-click an actual LV/MV/HV/EV/IV GTCEU machine before
+  and after the relevant tier is unlocked, and to confirm `Java.loadClass` for GTCEU's
+  `MetaMachineBlock`/`GTValues` isn't denied by KubeJS's class filter in practice.
+- **Moon/Mars science item textures are placeholders** (Pitfall below on Laboratory
+  textures applies here too): a flat tint (silvery grey for Moon, rust red for Mars) over
+  the existing IV-tier icon per category, purely to be visually distinct until real art
+  exists.
 - **The ModernFix/pre-existing-world blockstate migration issue (Pitfall #10) was found but
   not resolved** — worth a proper fix (or at least a documented recommendation: e.g. "break
   and re-place any Laboratory placed before this update") before shipping the active/

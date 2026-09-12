@@ -22,10 +22,11 @@ BlockEvents.rightClicked('minecraft:furnace', event => {
 
 // One gating (multi-)block per age transition - each locked until the team has reached
 // the tier listed as "requiresTier" in progression.json's "gates" array. This only
-// handles the "interaction" and "placement" mechanisms; the "possession" mechanism (LV
-// generators) is enforced Java-side instead, by GatedItemEnforcer scanning inventories -
-// placement/interaction gates alone can be bypassed once a player has some means of
-// placing/acquiring an item other than the exact action being listened for here.
+// handles the "interaction" and "placement" mechanisms (plus "gtceu_voltage_interaction"
+// further down, a variant of "interaction" for GTCEU machines); the "possession" mechanism
+// is enforced Java-side instead, by GatedItemEnforcer scanning inventories - placement/
+// interaction gates alone can be bypassed once a player has some means of placing/acquiring
+// an item other than the exact action being listened for here.
 // Rhino (KubeJS's script engine here) doesn't support object-spread in object literals -
 // mutate each parsed gate in place with its resolved stageId instead of spreading it into
 // a new object.
@@ -100,6 +101,38 @@ if (BLOCKED_BLOCKS_PLACEMENT_GATES.length > 0) {
         for (let i = 0; i < BLOCKED_BLOCKS_PLACEMENT_GATES.length; i++) {
             const gate = BLOCKED_BLOCKS_PLACEMENT_GATES[i]
             if (gate.blocks.indexOf(heldItemId) !== -1 && !event.player.stages.has(gate.stageId)) {
+                event.player.tell(gate.message)
+                event.cancel()
+                return
+            }
+        }
+    })
+}
+
+// "gtceu_voltage_interaction" gates an entire GTCEU voltage tier's worth of machines at once
+// (e.g. "all LV machines") instead of listing individual block ids - GTCEU has no block tag
+// for "every machine of tier X" (only item tags like #gtceu:circuits/mv exist), but every
+// GTCEU machine block (including hatches/buses/casings - deliberately "all", not just the
+// simple single-block machines) is an instance of MetaMachineBlock, whose
+// MachineDefinition#getTier() gives the same voltage-tier index GTValues.VN is keyed by
+// (LV=1, MV=2, HV=3, EV=4, IV=5 - confirmed via javap against the actual gtceu jar). Only a
+// plain player right-click is gated here, on purpose - no dispenser/fire-starter-style edge
+// cases to worry about for these, unlike the Bloomery/Blast Furnace gates above.
+const BLOCKED_BLOCKS_GTCEU_VOLTAGE_GATES = BLOCKED_BLOCKS_GATES.filter(gate => gate.mechanism === 'gtceu_voltage_interaction')
+
+if (BLOCKED_BLOCKS_GTCEU_VOLTAGE_GATES.length > 0) {
+    const MetaMachineBlock = Java.loadClass('com.gregtechceu.gtceu.api.block.MetaMachineBlock')
+    const GTValues = Java.loadClass('com.gregtechceu.gtceu.api.GTValues')
+
+    BlockEvents.rightClicked(event => {
+        const block = event.block.blockState.getBlock()
+        if (!MetaMachineBlock.isInstance(block)) {
+            return
+        }
+        const voltage = GTValues.VN[block.getDefinition().getTier()]
+        for (let i = 0; i < BLOCKED_BLOCKS_GTCEU_VOLTAGE_GATES.length; i++) {
+            const gate = BLOCKED_BLOCKS_GTCEU_VOLTAGE_GATES[i]
+            if (gate.voltage === voltage && !event.player.stages.has(gate.stageId)) {
                 event.player.tell(gate.message)
                 event.cancel()
                 return

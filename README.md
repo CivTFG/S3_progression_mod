@@ -2,7 +2,7 @@
 
 A Forge mod + KubeJS scripts implementing the tech-tier progression system for **CivTFG
 Season 3**. Teams (via FTB Teams/Chunks) research their way through a fixed sequence of
-tiers - Bronze, Iron, Steel, Steam, LV, HV, EV, IV - by crafting "science" items in a
+tiers - Bronze, Iron, Steel, Steam, LV, MV, HV, Moon, EV, Mars, IV - by crafting "science" items in a
 custom **Laboratory** block, and each tier unlocks a specific gating machine needed to
 reach the next one (e.g. completing Bronze unlocks the bloomery needed to make Iron).
 
@@ -27,7 +27,10 @@ reach the next one (e.g. completing Bronze unlocks the bloomery needed to make I
   - used where placement/interaction alone could be bypassed by automation). Possession
   gates also get an instant assist via Mixin (`CraftingLockMixin`/`CraftingLockScreenMixin`):
   a gated item can't even be taken out of a normal crafting-table result slot, instead of
-  waiting up to a second for the inventory sweep to strip it back out.
+  waiting up to a second for the inventory sweep to strip it back out. A fourth gate type,
+  `gtceu_voltage_interaction`, locks out an entire GTCEU voltage tier's worth of machines at
+  once (e.g. every LV machine) by checking each right-clicked block's own GTCEU tier
+  directly, instead of listing individual block ids - see `CLAUDE.md` for how.
 - **Single source of truth** - `config/s3_progression_mod/progression.json` defines tier
   order, thresholds, gamestage ids, and the gated-machine list. Both the Java mod and
   every KubeJS script read this one file at runtime; rebalancing tiers/thresholds/gates
@@ -90,7 +93,9 @@ pack this mod targets includes them - without them the corresponding gate simply
 triggers):
 
 - TerraFirmaCraft (TFC) - bloomery, blast furnace
-- GregTech CEu (GTCEU) - steam boilers, LV generators, High Temp Precision Fabricator
+- GregTech CEu (GTCEU) - steam boilers, plus every LV/MV/HV/EV/IV machine block (checked
+  generically via GTCEU's own `MetaMachineBlock`/`GTValues` classes, reflectively loaded by
+  `blocked_blocks.js` at runtime - still not a compile-time dependency, see `CLAUDE.md`)
 - Ad Astra - Moon/Mars rockets
 
 Also referenced by id in `science_recipes.js` (science-item crafting recipes only - not

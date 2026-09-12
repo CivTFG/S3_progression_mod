@@ -1,8 +1,8 @@
 {
   "type": "minecraft:crafting_shapeless",
   "ingredients": [
-    { "item": "tfg:mv_universal_circuit" },
-    { "item": "tfg:mv_universal_circuit" },
+    { "tag": "gtceu:circuits/mv" },
+    { "tag": "gtceu:circuits/mv" },
     { "item": "minecraft:compass" },
     { "item": "minecraft:paper" }
   ],

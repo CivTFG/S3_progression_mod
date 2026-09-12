@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The 5 "science" items for each of the 9 progression tiers (see
+ * The 5 "science" items for each of the 11 progression tiers (see
  * com.civtfg.progression.stage.ProgressionTiers for the tier order/thresholds/stages -
  * the {@link Age} enum names here must match that class's Tier.key() values exactly).
  * {@link #register()} checks this against progression.json on startup and fails fast
@@ -34,8 +34,11 @@ public final class ModScienceItems {
         STEEL("Steel Age"),
         STEAM("Steam Age"),
         LV("LV"),
+        MV("MV"),
         HV("HV"),
+        MOON("Moon"),
         EV("EV"),
+        MARS("Mars"),
         IV("IV");
 
         public final String displayName;
