@@ -1,5 +1,6 @@
 package com.civtfg.progression.blockentity;
 
+import com.civtfg.progression.block.LaboratoryBlock;
 import com.civtfg.progression.event.ProgressionEvent;
 import com.civtfg.progression.menu.LaboratoryMenu;
 import com.civtfg.progression.registry.ModBlockEntities;
@@ -210,8 +211,18 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
         }
 
         Map.Entry<ModScienceItems.Age, Set<ModScienceItems.Category>> entry = byAge.entrySet().iterator().next();
-        String tierKey = entry.getKey().name();
+        ModScienceItems.Age age = entry.getKey();
+        String tierKey = age.name();
         int value = 1 << (entry.getValue().size() - 1);
+
+        // Hard gate: this specific lab block variant (Primitive/Industrial/Electric/
+        // Advanced/Elite/Quantum) only accepts science items from its own assigned pair
+        // (or singleton) of Ages - see LaboratoryBlock.LabTier. Wrong-age items never
+        // start progressing here at all, regardless of the team's own progression state.
+        if (getBlockState().getBlock() instanceof LaboratoryBlock laboratoryBlock
+                && !laboratoryBlock.getTier().allows(age)) {
+            return Optional.empty();
+        }
 
         // Hard gate: a tier is only allowed to start progressing once the team owning
         // this chunk has already crossed the immediately preceding tier's threshold.

@@ -1,7 +1,10 @@
 {
   "itemGroup.s3_progression_mod.progression_tab": "S3 Progression",
   "block.s3_progression_mod.laboratory": "Primitive Laboratory",
+  "block.s3_progression_mod.industrial_laboratory": "Industrial Laboratory",
+  "block.s3_progression_mod.electric_laboratory": "Electric Laboratory",
   "block.s3_progression_mod.advanced_laboratory": "Advanced Laboratory",
+  "block.s3_progression_mod.elite_laboratory": "Elite Laboratory",
   "block.s3_progression_mod.quantum_laboratory": "Quantum Laboratory",
   "block.s3_progression_mod.laboratory.out_of_order": "This laboratory is out of order",
   "item.s3_progression_mod.bronze_mining_science": "Bronze Age Mining Science",

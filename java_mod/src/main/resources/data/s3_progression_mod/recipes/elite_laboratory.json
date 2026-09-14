@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "TCT",
+    "TET",
+    "TTT"
+  ],
+  "key": {
+    "T": { "item": "gtceu:tungsten_steel_plate" },
+    "C": { "item": "ae2:certus_quartz_crystal" },
+    "E": { "tag": "gtceu:circuits/ev" }
+  },
+  "result": {
+    "item": "s3_progression_mod:elite_laboratory",
+    "count": 1
+  }
+}

@@ -16,14 +16,16 @@ public class ModBlocks {
             DeferredRegister.create(ForgeRegistries.BLOCKS, ProgressionMod.MOD_ID);
 
     /**
-     * Three purely cosmetic variants of the same LaboratoryBlock class/behavior - the
-     * registry name "laboratory" stays as the original (its display name is now "Primitive
-     * Laboratory", set in lang/en_us.json) rather than being renamed to "primitive_laboratory",
-     * so existing world saves with one already placed don't break. Which variant gets to be
-     * ACTIVE for a team is handled entirely by the existing per-team
-     * ProgressionTiers.hasLaboratory/setHasLaboratory flag (not per-block), so registering
-     * three separate instances of the same Block class is all that's needed for "only one
-     * lab total, of any variant, can be active" - no extra logic required.
+     * Six purely cosmetic variants of the same LaboratoryBlock class/behavior, each hard
+     * -restricted (via its {@link LaboratoryBlock.LabTier}) to research only its own pair
+     * (or singleton) of science Ages - see {@link LaboratoryBlock.LabTier} and
+     * {@link com.civtfg.progression.blockentity.LaboratoryBlockEntity#getMatchingScience}.
+     * The registry names "laboratory", "advanced_laboratory" and "quantum_laboratory" stay
+     * as their original names (their display names are set in lang/en_us.json) rather than
+     * being renamed, so existing world saves with one already placed don't break. Which
+     * variant gets to be ACTIVE for a team is handled per-(team, tier) by
+     * ProgressionTiers.hasLaboratory/setHasLaboratory - so a team can have up to one
+     * functional lab of each of the 6 tiers active simultaneously.
      */
     public static final RegistryObject<Block> LABORATORY = BLOCKS.register("laboratory",
             () -> new LaboratoryBlock(BlockBehaviour.Properties.of()
@@ -31,7 +33,26 @@ public class ModBlocks {
                     .strength(3.5f)
                     .sound(SoundType.STONE)
                     .requiresCorrectToolForDrops()
-                    .noOcclusion()));
+                    .noOcclusion(),
+                    LaboratoryBlock.LabTier.PRIMITIVE));
+
+    public static final RegistryObject<Block> INDUSTRIAL_LABORATORY = BLOCKS.register("industrial_laboratory",
+            () -> new LaboratoryBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.STONE)
+                    .strength(3.5f)
+                    .sound(SoundType.STONE)
+                    .requiresCorrectToolForDrops()
+                    .noOcclusion(),
+                    LaboratoryBlock.LabTier.INDUSTRIAL));
+
+    public static final RegistryObject<Block> ELECTRIC_LABORATORY = BLOCKS.register("electric_laboratory",
+            () -> new LaboratoryBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.STONE)
+                    .strength(3.5f)
+                    .sound(SoundType.STONE)
+                    .requiresCorrectToolForDrops()
+                    .noOcclusion(),
+                    LaboratoryBlock.LabTier.ELECTRIC));
 
     public static final RegistryObject<Block> ADVANCED_LABORATORY = BLOCKS.register("advanced_laboratory",
             () -> new LaboratoryBlock(BlockBehaviour.Properties.of()
@@ -39,7 +60,17 @@ public class ModBlocks {
                     .strength(3.5f)
                     .sound(SoundType.STONE)
                     .requiresCorrectToolForDrops()
-                    .noOcclusion()));
+                    .noOcclusion(),
+                    LaboratoryBlock.LabTier.ADVANCED));
+
+    public static final RegistryObject<Block> ELITE_LABORATORY = BLOCKS.register("elite_laboratory",
+            () -> new LaboratoryBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.STONE)
+                    .strength(3.5f)
+                    .sound(SoundType.STONE)
+                    .requiresCorrectToolForDrops()
+                    .noOcclusion(),
+                    LaboratoryBlock.LabTier.ELITE));
 
     public static final RegistryObject<Block> QUANTUM_LABORATORY = BLOCKS.register("quantum_laboratory",
             () -> new LaboratoryBlock(BlockBehaviour.Properties.of()
@@ -47,5 +78,6 @@ public class ModBlocks {
                     .strength(3.5f)
                     .sound(SoundType.STONE)
                     .requiresCorrectToolForDrops()
-                    .noOcclusion()));
+                    .noOcclusion(),
+                    LaboratoryBlock.LabTier.QUANTUM));
 }

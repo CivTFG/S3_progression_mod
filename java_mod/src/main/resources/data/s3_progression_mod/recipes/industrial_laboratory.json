@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "SFS",
+    "SCS",
+    "SSS"
+  ],
+  "key": {
+    "S": { "item": "tfc:metal/ingot/steel" },
+    "F": { "item": "gtceu:steel_frame" },
+    "C": { "item": "gtceu:cobalt_brass_ingot" }
+  },
+  "result": {
+    "item": "s3_progression_mod:industrial_laboratory",
+    "count": 1
+  }
+}

@@ -1,5 +1,6 @@
 package com.civtfg.progression.stage;
 
+import com.civtfg.progression.block.LaboratoryBlock;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
@@ -71,10 +72,12 @@ public final class ProgressionTiers {
     public static final String RESEARCH_KEY;
 
     /**
-     * NBT key marking that a team already has a functional Laboratory placed somewhere in
-     * their claim - see {@link com.civtfg.progression.block.LaboratoryBlock}'s "out of
-     * order" decorative-copy mechanic, which reads/writes this via {@link #hasLaboratory}
-     * and {@link #setHasLaboratory} to allow only the first lab per team to be functional.
+     * NBT key prefix marking that a team already has a functional Laboratory of a given
+     * {@link LaboratoryBlock.LabTier} placed somewhere in their claim - see
+     * {@link LaboratoryBlock}'s "out of order" decorative-copy mechanic, which
+     * reads/writes this (suffixed per-tier, see {@link #hasLaboratoryKey}) via
+     * {@link #hasLaboratory} and {@link #setHasLaboratory} to allow only the first lab of
+     * each tier per team to be functional (so up to one functional lab per tier, per team).
      */
     private static final String HAS_LABORATORY_KEY = "s3_progression_mod:has_laboratory";
 
@@ -201,14 +204,18 @@ public final class ProgressionTiers {
         return TIERS[0].displayName();
     }
 
-    /** @return whether {@code team} already has a functional Laboratory placed somewhere in their claim. */
-    public static boolean hasLaboratory(Team team) {
-        return team.getExtraData().getBoolean(HAS_LABORATORY_KEY);
+    private static String hasLaboratoryKey(LaboratoryBlock.LabTier tier) {
+        return HAS_LABORATORY_KEY + ":" + tier.name();
     }
 
-    /** Marks whether {@code team} has a functional Laboratory - see {@link #hasLaboratory}. */
-    public static void setHasLaboratory(Team team, boolean value) {
-        team.getExtraData().putBoolean(HAS_LABORATORY_KEY, value);
+    /** @return whether {@code team} already has a functional Laboratory of {@code tier} placed somewhere in their claim. */
+    public static boolean hasLaboratory(Team team, LaboratoryBlock.LabTier tier) {
+        return team.getExtraData().getBoolean(hasLaboratoryKey(tier));
+    }
+
+    /** Marks whether {@code team} has a functional Laboratory of {@code tier} - see {@link #hasLaboratory}. */
+    public static void setHasLaboratory(Team team, LaboratoryBlock.LabTier tier, boolean value) {
+        team.getExtraData().putBoolean(hasLaboratoryKey(tier), value);
         team.markDirty();
     }
 

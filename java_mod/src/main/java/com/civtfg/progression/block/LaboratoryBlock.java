@@ -2,6 +2,7 @@ package com.civtfg.progression.block;
 
 import com.civtfg.progression.blockentity.LaboratoryBlockEntity;
 import com.civtfg.progression.registry.ModBlockEntities;
+import com.civtfg.progression.registry.ModScienceItems;
 import com.civtfg.progression.stage.ProgressionTiers;
 import dev.ftb.mods.ftbteams.api.Team;
 import net.minecraft.core.BlockPos;
@@ -28,22 +29,61 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.EnumSet;
+import java.util.Set;
+
 public class LaboratoryBlock extends BaseEntityBlock {
 
     /**
-     * Whether this particular lab is the functional one - only the first lab placed in a
-     * team's claim gets ACTIVE=true (see {@link #getStateForPlacement} and
-     * {@link ProgressionTiers#hasLaboratory}); every other placement (unclaimed chunk, or
-     * a team that already has one) is an inert decorative copy: no GUI, no ticking, just
-     * an "out of order" message on right-click. Both variants share the same model/loot
-     * table, so a broken decorative lab still drops - and can be re-placed as - a normal
-     * laboratory item.
+     * Which of the 6 laboratory block variants this is, and which science Ages it's
+     * allowed to research - see {@link LaboratoryBlockEntity#getMatchingScience(Level)},
+     * which rejects a craft outright if the single Age present among its slotted items
+     * isn't in {@link #allowedAges}. Independent of the ACTIVE/"out of order" mechanic
+     * below: that one is about which physical lab (of a given tier) is functional, this
+     * one is about which items a functional lab of that tier will accept.
+     */
+    public enum LabTier {
+        PRIMITIVE(EnumSet.of(ModScienceItems.Age.BRONZE, ModScienceItems.Age.IRON)),
+        INDUSTRIAL(EnumSet.of(ModScienceItems.Age.STEEL, ModScienceItems.Age.STEAM)),
+        ELECTRIC(EnumSet.of(ModScienceItems.Age.LV, ModScienceItems.Age.MV)),
+        ADVANCED(EnumSet.of(ModScienceItems.Age.HV, ModScienceItems.Age.MOON)),
+        ELITE(EnumSet.of(ModScienceItems.Age.EV, ModScienceItems.Age.MARS)),
+        QUANTUM(EnumSet.of(ModScienceItems.Age.IV));
+
+        private final Set<ModScienceItems.Age> allowedAges;
+
+        LabTier(Set<ModScienceItems.Age> allowedAges) {
+            this.allowedAges = allowedAges;
+        }
+
+        public boolean allows(ModScienceItems.Age age) {
+            return allowedAges.contains(age);
+        }
+    }
+
+    /**
+     * Whether this particular lab is the functional one for its {@link #tier} - only the
+     * first lab of a given tier placed in a team's claim gets ACTIVE=true (see
+     * {@link #getStateForPlacement} and {@link ProgressionTiers#hasLaboratory}); every
+     * other same-tier placement (unclaimed chunk, or a team that already has one of this
+     * tier) is an inert decorative copy: no GUI, no ticking, just an "out of order"
+     * message on right-click. A team can have up to one functional lab per tier (6 total)
+     * active simultaneously. All variants share the same model/loot table structure per
+     * variant, so a broken decorative lab still drops - and can be re-placed as - a normal
+     * laboratory item of that same variant.
      */
     public static final BooleanProperty ACTIVE = BooleanProperty.create("active");
 
-    public LaboratoryBlock(Properties properties) {
+    private final LabTier tier;
+
+    public LaboratoryBlock(Properties properties, LabTier tier) {
         super(properties);
+        this.tier = tier;
         registerDefaultState(stateDefinition.any().setValue(ACTIVE, true));
+    }
+
+    public LabTier getTier() {
+        return tier;
     }
 
     @Override
@@ -63,7 +103,7 @@ public class LaboratoryBlock extends BaseEntityBlock {
             return defaultBlockState();
         }
         Team team = ProgressionTiers.resolveTeam(level, context.getClickedPos());
-        boolean active = team != null && !ProgressionTiers.hasLaboratory(team);
+        boolean active = team != null && !ProgressionTiers.hasLaboratory(team, tier);
         return defaultBlockState().setValue(ACTIVE, active);
     }
 
@@ -73,7 +113,7 @@ public class LaboratoryBlock extends BaseEntityBlock {
         if (!level.isClientSide() && state.getValue(ACTIVE)) {
             Team team = ProgressionTiers.resolveTeam(level, pos);
             if (team != null) {
-                ProgressionTiers.setHasLaboratory(team, true);
+                ProgressionTiers.setHasLaboratory(team, tier, true);
             }
         }
     }
@@ -126,13 +166,15 @@ public class LaboratoryBlock extends BaseEntityBlock {
             if (level.getBlockEntity(pos) instanceof LaboratoryBlockEntity laboratory) {
                 laboratory.dropContents(level, pos);
             }
-            // The team's one functional lab was just destroyed - clear the flag so the
-            // next lab they place (anywhere in their claim) can become the functional one
-            // again, rather than every future placement being permanently "out of order".
+            // The team's one functional lab of this tier was just destroyed - clear the
+            // flag so the next lab of this same tier they place (anywhere in their claim)
+            // can become the functional one again, rather than every future placement of
+            // this tier being permanently "out of order". Other tiers' active flags are
+            // untouched.
             if (!level.isClientSide() && state.getValue(ACTIVE)) {
                 Team team = ProgressionTiers.resolveTeam(level, pos);
                 if (team != null) {
-                    ProgressionTiers.setHasLaboratory(team, false);
+                    ProgressionTiers.setHasLaboratory(team, tier, false);
                 }
             }
         }

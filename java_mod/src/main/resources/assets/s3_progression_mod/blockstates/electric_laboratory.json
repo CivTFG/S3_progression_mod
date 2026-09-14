@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "active=true": { "model": "s3_progression_mod:block/electric_laboratory_active" },
+    "active=false": { "model": "s3_progression_mod:block/electric_laboratory" }
+  }
+}
