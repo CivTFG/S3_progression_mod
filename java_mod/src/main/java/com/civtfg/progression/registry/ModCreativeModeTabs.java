@@ -23,13 +23,14 @@ public final class ModCreativeModeTabs {
                         output.accept(ModItems.ELECTRIC_LABORATORY_ITEM.get());
                         output.accept(ModItems.ADVANCED_LABORATORY_ITEM.get());
                         output.accept(ModItems.ELITE_LABORATORY_ITEM.get());
-                        output.accept(ModItems.QUANTUM_LABORATORY_ITEM.get());
-                        int count = 6;
+                        int count = 5;
                         for (ModScienceItems.Age age : ModScienceItems.Age.values()) {
                             for (ModScienceItems.Category category : ModScienceItems.Category.values()) {
                                 output.accept(ModScienceItems.get(age, category).get());
                                 count++;
                             }
+                            output.accept(ModEmptyScienceItems.get(age).get());
+                            count++;
                         }
                         ProgressionMod.LOGGER.info("[s3_progression_mod] progression_tab displayItems generator ran, added {} items", count);
                     })

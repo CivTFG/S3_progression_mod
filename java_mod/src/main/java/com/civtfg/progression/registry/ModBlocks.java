@@ -16,16 +16,19 @@ public class ModBlocks {
             DeferredRegister.create(ForgeRegistries.BLOCKS, ProgressionMod.MOD_ID);
 
     /**
-     * Six purely cosmetic variants of the same LaboratoryBlock class/behavior, each hard
-     * -restricted (via its {@link LaboratoryBlock.LabTier}) to research only its own pair
-     * (or singleton) of science Ages - see {@link LaboratoryBlock.LabTier} and
+     * Five purely cosmetic variants of the same LaboratoryBlock class/behavior, each
+     * researching a cumulative, growing set of science Ages via its
+     * {@link LaboratoryBlock.LabTier} - see {@link LaboratoryBlock.LabTier} and
      * {@link com.civtfg.progression.blockentity.LaboratoryBlockEntity#getMatchingScience}.
-     * The registry names "laboratory", "advanced_laboratory" and "quantum_laboratory" stay
-     * as their original names (their display names are set in lang/en_us.json) rather than
-     * being renamed, so existing world saves with one already placed don't break. Which
-     * variant gets to be ACTIVE for a team is handled per-(team, tier) by
+     * The registry names "laboratory" and "advanced_laboratory" stay as their original
+     * names (their display names are set in lang/en_us.json) rather than being renamed, so
+     * existing world saves with one already placed don't break. Which variant gets to be
+     * ACTIVE for a team is handled per-(team, tier) by
      * ProgressionTiers.hasLaboratory/setHasLaboratory - so a team can have up to one
-     * functional lab of each of the 6 tiers active simultaneously.
+     * functional lab of each of the 5 tiers active simultaneously. (A sixth variant,
+     * "quantum_laboratory", existed briefly for the now-removed IV research tier and was
+     * deleted before ever shipping to a live server - if you find a stray reference to it
+     * anywhere, it's dead and should be removed too.)
      */
     public static final RegistryObject<Block> LABORATORY = BLOCKS.register("laboratory",
             () -> new LaboratoryBlock(BlockBehaviour.Properties.of()
@@ -71,13 +74,4 @@ public class ModBlocks {
                     .requiresCorrectToolForDrops()
                     .noOcclusion(),
                     LaboratoryBlock.LabTier.ELITE));
-
-    public static final RegistryObject<Block> QUANTUM_LABORATORY = BLOCKS.register("quantum_laboratory",
-            () -> new LaboratoryBlock(BlockBehaviour.Properties.of()
-                    .mapColor(MapColor.STONE)
-                    .strength(3.5f)
-                    .sound(SoundType.STONE)
-                    .requiresCorrectToolForDrops()
-                    .noOcclusion(),
-                    LaboratoryBlock.LabTier.QUANTUM));
 }

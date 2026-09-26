@@ -4,6 +4,7 @@ import com.civtfg.progression.client.LaboratoryScreen;
 import com.civtfg.progression.registry.ModBlockEntities;
 import com.civtfg.progression.registry.ModBlocks;
 import com.civtfg.progression.registry.ModCreativeModeTabs;
+import com.civtfg.progression.registry.ModEmptyScienceItems;
 import com.civtfg.progression.registry.ModItems;
 import com.civtfg.progression.registry.ModMenuTypes;
 import com.civtfg.progression.registry.ModScienceItems;
@@ -34,6 +35,7 @@ public class ProgressionMod {
         ModBlocks.BLOCKS.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModScienceItems.register();
+        ModEmptyScienceItems.register();
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
         ModMenuTypes.MENUS.register(modEventBus);
         ModCreativeModeTabs.CREATIVE_MODE_TABS.register(modEventBus);
@@ -56,11 +58,12 @@ public class ProgressionMod {
             event.accept(ModItems.LABORATORY_ITEM);
         }
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
-            LOGGER.info("[s3_progression_mod] BuildCreativeModeTabContentsEvent fired for INGREDIENTS, adding 45 science items");
+            LOGGER.info("[s3_progression_mod] BuildCreativeModeTabContentsEvent fired for INGREDIENTS, adding science items");
             for (ModScienceItems.Age age : ModScienceItems.Age.values()) {
                 for (ModScienceItems.Category category : ModScienceItems.Category.values()) {
                     event.accept(ModScienceItems.get(age, category));
                 }
+                event.accept(ModEmptyScienceItems.get(age));
             }
         }
     }

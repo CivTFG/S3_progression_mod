@@ -35,20 +35,35 @@ import java.util.Set;
 public class LaboratoryBlock extends BaseEntityBlock {
 
     /**
-     * Which of the 6 laboratory block variants this is, and which science Ages it's
+     * Which of the 5 laboratory block variants this is, and which science Ages it's
      * allowed to research - see {@link LaboratoryBlockEntity#getMatchingScience(Level)},
      * which rejects a craft outright if the single Age present among its slotted items
      * isn't in {@link #allowedAges}. Independent of the ACTIVE/"out of order" mechanic
      * below: that one is about which physical lab (of a given tier) is functional, this
      * one is about which items a functional lab of that tier will accept.
+     *
+     * <p>Cumulative, not exclusive: each successive tier's set is the previous tier's set
+     * plus its own new pair of Ages, so e.g. Industrial still researches Bronze/Iron items
+     * too, not just Steel/Steam - "every lab from here on can do more, not switch to a
+     * different two ages". {@code ELITE} is simply every Age, since Mars is the last one
+     * (IV was removed as a research tier entirely - crossing Mars now unlocks everything).
      */
     public enum LabTier {
-        PRIMITIVE(EnumSet.of(ModScienceItems.Age.BRONZE, ModScienceItems.Age.IRON)),
-        INDUSTRIAL(EnumSet.of(ModScienceItems.Age.STEEL, ModScienceItems.Age.STEAM)),
-        ELECTRIC(EnumSet.of(ModScienceItems.Age.LV, ModScienceItems.Age.MV)),
-        ADVANCED(EnumSet.of(ModScienceItems.Age.HV, ModScienceItems.Age.MOON)),
-        ELITE(EnumSet.of(ModScienceItems.Age.EV, ModScienceItems.Age.MARS)),
-        QUANTUM(EnumSet.of(ModScienceItems.Age.IV));
+        PRIMITIVE(EnumSet.of(
+                ModScienceItems.Age.BRONZE, ModScienceItems.Age.IRON)),
+        INDUSTRIAL(EnumSet.of(
+                ModScienceItems.Age.BRONZE, ModScienceItems.Age.IRON,
+                ModScienceItems.Age.STEEL, ModScienceItems.Age.STEAM)),
+        ELECTRIC(EnumSet.of(
+                ModScienceItems.Age.BRONZE, ModScienceItems.Age.IRON,
+                ModScienceItems.Age.STEEL, ModScienceItems.Age.STEAM,
+                ModScienceItems.Age.LV, ModScienceItems.Age.MV)),
+        ADVANCED(EnumSet.of(
+                ModScienceItems.Age.BRONZE, ModScienceItems.Age.IRON,
+                ModScienceItems.Age.STEEL, ModScienceItems.Age.STEAM,
+                ModScienceItems.Age.LV, ModScienceItems.Age.MV,
+                ModScienceItems.Age.HV, ModScienceItems.Age.MOON)),
+        ELITE(EnumSet.allOf(ModScienceItems.Age.class));
 
         private final Set<ModScienceItems.Age> allowedAges;
 
@@ -67,7 +82,7 @@ public class LaboratoryBlock extends BaseEntityBlock {
      * {@link #getStateForPlacement} and {@link ProgressionTiers#hasLaboratory}); every
      * other same-tier placement (unclaimed chunk, or a team that already has one of this
      * tier) is an inert decorative copy: no GUI, no ticking, just an "out of order"
-     * message on right-click. A team can have up to one functional lab per tier (6 total)
+     * message on right-click. A team can have up to one functional lab per tier (5 total)
      * active simultaneously. All variants share the same model/loot table structure per
      * variant, so a broken decorative lab still drops - and can be re-placed as - a normal
      * laboratory item of that same variant.

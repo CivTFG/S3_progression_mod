@@ -113,36 +113,49 @@ README.md                        user-facing install/build instructions — keep
   claim is functional; every other one (unclaimed chunk, or a team that already has one) is
   a decorative "out of order" copy — same block, `ACTIVE` blockstate property. See Pitfall
   #4 for the exact bug this produced and how it's fixed now.
-- **Three cosmetic Laboratory variants** (`laboratory` aka "Primitive Laboratory" - kept its
-  original registry name for save compatibility, only its lang display name changed -
-  `advanced_laboratory`, `quantum_laboratory`): three separate `Block`/`BlockItem`
-  registrations, all just `new LaboratoryBlock(...)` with the same properties, sharing one
-  `BlockEntityType` (`Builder.of` takes valid-blocks as varargs). The "only one active lab"
-  flag lives on the **team** (`ProgressionTiers.hasLaboratory`), not per-block, so it
-  automatically applies across all three variants with zero extra logic - placing an
-  Advanced Laboratory while a Primitive one is already active just makes the Advanced one
-  the decorative copy, and vice versa. Each variant's own loot table drops itself (not a
-  shared/generic item) - unlike the single-item active/decorative case where a decorative
-  copy just drops a normal placeable item, since here each variant *is* its own distinct,
-  real item and collapsing them back to one on drop would be a real regression from the
-  player's perspective. Two things had to be generalized away from a hardcoded single block
-  when this was added - if a fourth variant is ever added, check both again:
-  - `LaboratoryMenu#stillValid` used to hardcode `ModBlocks.LABORATORY.get()`; now checks
-    `blockEntity.getBlockState().getBlock()` instead (reuses vanilla's own
-    `stillValid(ContainerLevelAccess, Player, Block)`, which is Forge's reach-attribute-aware
-    version, not a naive fixed-distance check - don't reimplement that math, just pass it
-    the right `Block`).
-  - `LaboratoryBlockEntity#getDisplayName` used to hardcode the `"...laboratory"`
-    translation key; now returns `getBlockState().getBlock().getName()` (resolves to
-    `Component.translatable(getDescriptionId())` automatically for whichever variant it is).
-  Placeholder textures for the two new variants are the original Laboratory textures with a
-  flat color tint applied (blue for Advanced, violet for Quantum) purely so the three are
-  visually distinguishable at all before real art replaces them - same "functional
-  placeholder, not final art" situation as the ACTIVE-state animated textures.
-- **Science items**: `ModScienceItems` registers 5 items (one per category) × 11 ages
-  (`Age` enum) = 55 items, named `<age>_<category>_science`. `ModScienceItems.register()`
+- **Five cumulative Laboratory variants** (`laboratory` aka "Primitive Laboratory" - kept
+  its original registry name for save compatibility - `industrial_laboratory`,
+  `electric_laboratory`, `advanced_laboratory`, `elite_laboratory`): five separate
+  `Block`/`BlockItem` registrations, all just `new LaboratoryBlock(...)` with the same
+  properties and a different `LaboratoryBlock.LabTier`, sharing one `BlockEntityType`
+  (`Builder.of` takes valid-blocks as varargs). **Cumulative, not exclusive**: each
+  successive tier's `LabTier.allowedAges` is the previous tier's set plus its own new pair
+  of `ModScienceItems.Age`s (`ELITE` = every remaining Age, since Mars/EV is now the last
+  pair - see Pitfall #16 for why this wasn't always true and what it looked like before).
+  The "only one active lab per tier" flag lives on the **team**, keyed by tier
+  (`ProgressionTiers.hasLaboratory(team, tier)`/`setHasLaboratory`), so a team can have up
+  to one functional lab of each of the 5 tiers simultaneously - placing an Industrial
+  Laboratory doesn't affect whether a Primitive one is still active, they're independent.
+  Each variant's own loot table drops itself (a real, distinct item per variant, not a
+  shared/generic placeable). Two things had to be generalized away from a hardcoded single
+  block when multiple variants were first introduced - if a sixth variant is ever added,
+  check both again:
+  - `LaboratoryMenu#stillValid` checks `blockEntity.getBlockState().getBlock()` (reuses
+    vanilla's own `stillValid(ContainerLevelAccess, Player, Block)`, which is Forge's
+    reach-attribute-aware version, not a naive fixed-distance check - don't reimplement
+    that math, just pass it the right `Block`).
+  - `LaboratoryBlockEntity#getDisplayName` returns `getBlockState().getBlock().getName()`
+    (resolves to `Component.translatable(getDescriptionId())` automatically for whichever
+    variant it is).
+  Block textures are real, hand-painted art for all 5 tiers as of this writing - each has
+  its own top/side/front/back/bottom faces via a full `minecraft:block/cube` model (see
+  Pitfall #16 for why the model had to move off `cube_bottom_top`), plus the existing
+  placeholder ACTIVE-state pulse animation (`_top_active`/`_side_active`, unrelated to this
+  change, still a placeholder).
+- **Science items**: `ModScienceItems` registers 5 items (one per category) × 10 ages
+  (`Age` enum) = 50 items, named `<age>_<category>_science`. `ModScienceItems.register()`
   fails fast at startup if `Age`/`Category` don't exactly match `progression.json`'s
-  tiers/categories — keep these in lockstep.
+  tiers/categories — keep these in lockstep. IV was removed as a research tier entirely
+  (Pitfall #16) - Mars is now the last one.
+- **"Empty" science items**: `ModEmptyScienceItems` registers one additional
+  `<age>_empty_science` item per `Age` (10 total) - a per-tier blank crafting base meant to
+  be turned into that tier's 5 real science items. Deliberately a **separate registry**
+  from `ModScienceItems`, not a 6th `Category` - it must never be a valid Laboratory
+  research input, so it's simply never added to `ModScienceItems`'s
+  `identify()`/`SCIENCE_ITEMS` map; `LaboratoryBlockEntity.getMatchingScience` already
+  rejects any item it doesn't recognize, no extra check needed. **No recipes exist for
+  these yet** (what crafts the empty item, what empty+X produces each category) - that's
+  real recipe-design work, deliberately deferred (see Known Issues).
 - **A tier's science items stop being craftable once that tier is itself unlocked** (not
   just gated against jumping ahead) — see Pitfall #13. `ProgressionTiers.canCraftTier`
   is the single enforcement point (`LaboratoryBlockEntity.getMatchingScience` rejects
@@ -160,7 +173,8 @@ one file at runtime; edit it, not hardcoded copies)
   "categories": ["mining", "farming", "production", "exploration", "challenge"],
   "tiers": [
     { "key": "BRONZE", "displayName": "Bronze Age", "stageId": "bronze_unlocked", "threshold": 3 },
-    // ... IRON, STEEL, STEAM, LV, MV, HV, MOON, EV, MARS, IV — MV was removed once (Pitfall
+    // ... IRON, STEEL, STEAM, LV, MV, HV, MOON, EV, MARS — MARS is the last tier now, IV
+    // was removed as a research tier entirely (Pitfall #16); MV was removed once (Pitfall
     // #8) and reintroduced later once real gating blocks existed for it (Pitfall #14);
     // MOON/MARS are tiers in their own right too, not just rocket labels
   ],
@@ -499,25 +513,54 @@ actually relevant before assuming a jar or config change reached anywhere real:
     from "who do I tell about it" (conditional on a player actually existing) - never let a
     null-check for the second thing skip the first.
 
+16. **A commit made by a different Claude session, working the same repo concurrently,
+    landed a design that didn't match what the user actually wanted - the only way this
+    surfaced was the user asking a clarifying question in a later, unrelated session.**
+    While this session was mid-fix on the dispenser/tier bugs, another session's commit
+    (`61cb638`, "Split laboratories into 6 tiers, each restricted to its own science pair")
+    split the single Laboratory into 6 variants gated to *exclusive* pairs of Ages
+    (Industrial = Steel/Steam only, nothing from Bronze/Iron). The user's actual intent,
+    surfaced only when they asked "sind die erforschbaren Tiers schon auf 2 pro Labortyp
+    begrenzt?" while delivering real art, was **cumulative** (each successive tier keeps
+    everything earlier tiers could do, plus its own new pair) - fixed by changing
+    `LaboratoryBlock.LabTier`'s `allowedAges` sets accordingly. **If you didn't write a
+    commit yourself and its rationale doesn't fully add up, don't assume it's correct just
+    because it's already merged** - ask, the same way you'd ask about a genuinely new
+    request. Separately, in the same conversation the user also decided IV should stop
+    being a research tier entirely (Mars is now last, "unlocks everything") - this made the
+    6th variant (`QUANTUM`, ex-IV-only) redundant under the cumulative model, so it and the
+    whole IV tier were removed together (see the repo layout / Science items sections
+    above for exactly what that touched). The delivered Laboratory art also came as a 3x3
+    face-net template per tier (top/side/front/back/bottom, with real front/back art, not
+    just a repeated side) - the block model had to move from `minecraft:block/cube_bottom_top`
+    (3 texture slots: top/side/bottom, one `side` on all 4 verticals) to full
+    `minecraft:block/cube` (6 slots: `up`/`down`/`north`/`south`/`east`/`west`) to actually
+    use the new faces - a plain texture swap wouldn't have been enough here.
+
 ## Known issues / unfinished work
 
 - **Recipe system duplication and gaps** (Pitfall #2) — the biggest open item. Static
   per-category recipe jsons vs. `science_recipes.js`; only `mining` is designed in the new
   system.
 - **Farming/production/exploration/challenge science recipes were never designed**, and
-  **MOON/MARS have no recipes in any system yet** (items exist, nothing crafts them). The
-  original design intent (from the user): farming cheap-but-picky (tailored to specific
-  crops per tier), production resource-expensive-but-automatable (GTCEU/Create machines —
-  motors, conveyors, circuits), exploration needs items from across biomes/dimensions,
-  challenge needs rare/hard-to-get-early items at the edge of the unlocked age.
+  **the new "empty" science items (`ModEmptyScienceItems`, one per Age) have zero recipes
+  in any system** - what crafts the empty item, and what empty+X produces each of the 5
+  categories, is still undesigned. The original design intent (from the user, for the 5
+  categories generally): farming cheap-but-picky (tailored to specific crops per tier),
+  production resource-expensive-but-automatable (GTCEU/Create machines — motors, conveyors,
+  circuits), exploration needs items from across biomes/dimensions, challenge needs
+  rare/hard-to-get-early items at the edge of the unlocked age.
 - **The new `gtceu_voltage_interaction` gate mechanism (Pitfall #14) hasn't been live-tested
   in-game yet** — needs someone to right-click an actual LV/MV/HV/EV/IV GTCEU machine before
   and after the relevant tier is unlocked, and to confirm `Java.loadClass` for GTCEU's
   `MetaMachineBlock`/`GTValues` isn't denied by KubeJS's class filter in practice.
-- **Moon/Mars science item textures are placeholders** (Pitfall below on Laboratory
-  textures applies here too): a flat tint (silvery grey for Moon, rust red for Mars) over
-  the existing IV-tier icon per category, purely to be visually distinct until real art
-  exists.
+- **The 5 Laboratory tiers' real block art and all 50 real science-item icons haven't been
+  seen in-game yet either** (Pitfall #16) - in particular, confirm the new 6-face
+  `minecraft:block/cube` model actually renders front/back distinctly from the side faces,
+  and that the front/back faces look right on all 4 horizontal orientations (the block has
+  no `FACING` property, so front/back are fixed to a constant world direction regardless of
+  which way the player was facing when they placed it - this was already true of the old
+  3-texture model too, just less noticeable when all 4 sides matched).
 - **The ModernFix/pre-existing-world blockstate migration issue (Pitfall #10) was found but
   not resolved** — worth a proper fix (or at least a documented recommendation: e.g. "break
   and re-place any Laboratory placed before this update") before shipping the active/
@@ -527,14 +570,12 @@ actually relevant before assuming a jar or config change reached anywhere real:
   scoped request at the time — don't assume they're current. `s3_client`/`s3_client_13.10`
   need re-syncing whenever the server-side mod list changes (see the client-pack memory
   note on the pakku-lock.json process).
-- Texture animation for the active Laboratory (`laboratory_top_active.png`,
-  `laboratory_side_active.png`) is currently a **placeholder** (a generated brightness-pulse
-  effect over the static texture) — the user said they want to paint the real art
-  themselves; don't treat the current frames as final. Same applies to the Advanced/Quantum
-  Laboratory variants' textures (all 10 `advanced_laboratory_*`/`quantum_laboratory_*` files)
-  - these are just the original Laboratory textures with a flat color tint (blue/violet)
-  applied programmatically, purely so the three variants are visually distinguishable at
-  all right now.
+- **Texture animation for every Laboratory tier's ACTIVE state** (`<prefix>_top_active.png`,
+  `<prefix>_side_active.png`) is still the original **placeholder** (a generated
+  brightness-pulse effect over the static texture, from before any real Laboratory art
+  existed) — unaffected by the Pitfall #16 art delivery, which only replaced the static
+  (non-animated) top/side/front/back/bottom faces. Don't treat the pulse animation as final;
+  the user may replace it later.
 
 ## Where to look first for anything not covered here
 

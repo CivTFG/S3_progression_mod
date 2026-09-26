@@ -12,13 +12,13 @@ public class ModBlockEntities {
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
             DeferredRegister.create(ForgeRegistries.BLOCK_ENTITY_TYPES, ProgressionMod.MOD_ID);
 
-    // One BlockEntityType shared by all six laboratory variants (Builder.of takes valid
+    // One BlockEntityType shared by all five laboratory variants (Builder.of takes valid
     // blocks as varargs) - they're mechanically identical, only their registered Block
     // (and therefore texture/display name/allowed science Ages) differs.
     public static final RegistryObject<BlockEntityType<LaboratoryBlockEntity>> LABORATORY =
             BLOCK_ENTITIES.register("laboratory", () -> BlockEntityType.Builder.of(
                     LaboratoryBlockEntity::new,
                     ModBlocks.LABORATORY.get(), ModBlocks.INDUSTRIAL_LABORATORY.get(), ModBlocks.ELECTRIC_LABORATORY.get(),
-                    ModBlocks.ADVANCED_LABORATORY.get(), ModBlocks.ELITE_LABORATORY.get(), ModBlocks.QUANTUM_LABORATORY.get()
+                    ModBlocks.ADVANCED_LABORATORY.get(), ModBlocks.ELITE_LABORATORY.get()
             ).build(null));
 }

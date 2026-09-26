@@ -26,7 +26,4 @@ public class ModItems {
 
     public static final RegistryObject<Item> ELITE_LABORATORY_ITEM = ITEMS.register("elite_laboratory",
             () -> new BlockItem(ModBlocks.ELITE_LABORATORY.get(), new Item.Properties()));
-
-    public static final RegistryObject<Item> QUANTUM_LABORATORY_ITEM = ITEMS.register("quantum_laboratory",
-            () -> new BlockItem(ModBlocks.QUANTUM_LABORATORY.get(), new Item.Properties()));
 }

@@ -66,13 +66,7 @@ const SCIENCE_RECIPES = [
   { "age": "EV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:tungsten_steel_ingot", "count": 2 }] },
   { "age": "EV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:titanium_carbide_ingot", "count": 1 }] },
   { "age": "EV", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:tantalum_carbide_ingot", "count": 1 }] },
-  { "age": "EV", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:rtm_alloy_ingot", "count": 1 }] },
-  { "age": "IV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:hsse_ingot", "count": 2 }] },
-  { "age": "IV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:hssg_ingot", "count": 2 }] },
-  { "age": "IV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:hsss_ingot", "count": 2 }] },
-  { "age": "IV", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:iridium_ingot", "count": 1 }] },
-  { "age": "IV", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:ruthenium_ingot", "count": 1 }] },
-  { "age": "IV", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:rhodium_plated_palladium_ingot", "count": 1 }] }
+  { "age": "EV", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:rtm_alloy_ingot", "count": 1 }] }
 ]
 // ===RECIPES-JSON-END===
 
