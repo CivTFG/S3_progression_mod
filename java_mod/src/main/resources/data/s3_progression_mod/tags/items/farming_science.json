@@ -1,0 +1,14 @@
+{
+  "values": [
+    "s3_progression_mod:bronze_farming_science",
+    "s3_progression_mod:iron_farming_science",
+    "s3_progression_mod:steel_farming_science",
+    "s3_progression_mod:steam_farming_science",
+    "s3_progression_mod:lv_farming_science",
+    "s3_progression_mod:mv_farming_science",
+    "s3_progression_mod:hv_farming_science",
+    "s3_progression_mod:moon_farming_science",
+    "s3_progression_mod:ev_farming_science",
+    "s3_progression_mod:mars_farming_science"
+  ]
+}

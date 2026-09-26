@@ -1,12 +1,12 @@
 {
   "parent": "minecraft:block/cube",
   "textures": {
-    "particle": "s3_progression_mod:block/electric_laboratory_side_active",
-    "up": "s3_progression_mod:block/electric_laboratory_top_active",
+    "particle": "s3_progression_mod:block/electric_laboratory_side",
+    "up": "s3_progression_mod:block/electric_laboratory_top",
     "down": "s3_progression_mod:block/electric_laboratory_bottom",
     "north": "s3_progression_mod:block/electric_laboratory_front",
     "south": "s3_progression_mod:block/electric_laboratory_back",
-    "east": "s3_progression_mod:block/electric_laboratory_side_active",
-    "west": "s3_progression_mod:block/electric_laboratory_side_active"
+    "east": "s3_progression_mod:block/electric_laboratory_side",
+    "west": "s3_progression_mod:block/electric_laboratory_side"
   }
 }

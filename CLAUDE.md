@@ -156,6 +156,13 @@ README.md                        user-facing install/build instructions — keep
   rejects any item it doesn't recognize, no extra check needed. **No recipes exist for
   these yet** (what crafts the empty item, what empty+X produces each category) - that's
   real recipe-design work, deliberately deferred (see Known Issues).
+- **Science-item tags** (`data/s3_progression_mod/tags/items/`): 10 per-tier tags
+  (`<age>_science`, e.g. `#s3_progression_mod:lv_science` = that tier's 5 category items)
+  plus 5 per-category tags (`<category>_science`, e.g. `#s3_progression_mod:mining_science`
+  = that category across all 10 tiers). Deliberately **excludes** the empty-science items
+  (user's explicit choice) - a recipe or datapack that wants "any mining science item" or
+  "any LV science item" can reference these instead of listing 5-10 ids by hand. Plain
+  static tag files, no Java code involved.
 - **A tier's science items stop being craftable once that tier is itself unlocked** (not
   just gated against jumping ahead) — see Pitfall #13. `ProgressionTiers.canCraftTier`
   is the single enforcement point (`LaboratoryBlockEntity.getMatchingScience` rejects
@@ -570,12 +577,16 @@ actually relevant before assuming a jar or config change reached anywhere real:
   scoped request at the time — don't assume they're current. `s3_client`/`s3_client_13.10`
   need re-syncing whenever the server-side mod list changes (see the client-pack memory
   note on the pakku-lock.json process).
-- **Texture animation for every Laboratory tier's ACTIVE state** (`<prefix>_top_active.png`,
-  `<prefix>_side_active.png`) is still the original **placeholder** (a generated
-  brightness-pulse effect over the static texture, from before any real Laboratory art
-  existed) — unaffected by the Pitfall #16 art delivery, which only replaced the static
-  (non-animated) top/side/front/back/bottom faces. Don't treat the pulse animation as final;
-  the user may replace it later.
+- **The ACTIVE-state pulse animation was removed entirely** (it was never re-created for the
+  Pitfall #16 real art, and having only 3 of 6 faces still pulse with the old placeholder
+  looked broken in-game - reported after the art delivery). `<prefix>_active.json` now
+  points every face at the exact same static textures as the non-active model - the two
+  model files are currently texture-identical, kept as separate files only so the
+  `ACTIVE` blockstate distinction (used for "out of order" logic, unrelated to rendering)
+  stays easy to re-diverge visually later if the user ever wants a new animated indicator.
+  The old `<prefix>_top_active.png`/`<prefix>_side_active.png` (+ `.mcmeta`) files were
+  deleted for all 5 tiers - if you're looking for the pulse effect's implementation, it no
+  longer exists.
 
 ## Where to look first for anything not covered here
 

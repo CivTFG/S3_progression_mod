@@ -1,0 +1,9 @@
+{
+  "values": [
+    "s3_progression_mod:mv_mining_science",
+    "s3_progression_mod:mv_farming_science",
+    "s3_progression_mod:mv_production_science",
+    "s3_progression_mod:mv_exploration_science",
+    "s3_progression_mod:mv_challenge_science"
+  ]
+}

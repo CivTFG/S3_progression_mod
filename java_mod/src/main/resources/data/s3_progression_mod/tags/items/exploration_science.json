@@ -1,0 +1,14 @@
+{
+  "values": [
+    "s3_progression_mod:bronze_exploration_science",
+    "s3_progression_mod:iron_exploration_science",
+    "s3_progression_mod:steel_exploration_science",
+    "s3_progression_mod:steam_exploration_science",
+    "s3_progression_mod:lv_exploration_science",
+    "s3_progression_mod:mv_exploration_science",
+    "s3_progression_mod:hv_exploration_science",
+    "s3_progression_mod:moon_exploration_science",
+    "s3_progression_mod:ev_exploration_science",
+    "s3_progression_mod:mars_exploration_science"
+  ]
+}

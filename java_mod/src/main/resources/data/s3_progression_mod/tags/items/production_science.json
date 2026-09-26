@@ -1,0 +1,14 @@
+{
+  "values": [
+    "s3_progression_mod:bronze_production_science",
+    "s3_progression_mod:iron_production_science",
+    "s3_progression_mod:steel_production_science",
+    "s3_progression_mod:steam_production_science",
+    "s3_progression_mod:lv_production_science",
+    "s3_progression_mod:mv_production_science",
+    "s3_progression_mod:hv_production_science",
+    "s3_progression_mod:moon_production_science",
+    "s3_progression_mod:ev_production_science",
+    "s3_progression_mod:mars_production_science"
+  ]
+}

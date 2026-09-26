@@ -1,0 +1,9 @@
+{
+  "values": [
+    "s3_progression_mod:mars_mining_science",
+    "s3_progression_mod:mars_farming_science",
+    "s3_progression_mod:mars_production_science",
+    "s3_progression_mod:mars_exploration_science",
+    "s3_progression_mod:mars_challenge_science"
+  ]
+}
