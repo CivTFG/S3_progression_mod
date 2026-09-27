@@ -244,12 +244,16 @@ old one. The 5 Laboratory-block recipes (`laboratory.json`,
      at all, see Pitfall #3), which nothing else here finds without someone manually
      looking the item up in EMI first.
   Re-run after mods change; `item_index.json` is gitignored (regenerable, tied to whichever
-  mod jars happen to be installed locally, ~24.7k entries as of last build with no ProbeJS
-  dump available - was ~39k when one was). **All four `DEFAULT_*` paths (and
-  `recipe_editor.py`'s `INSTANCE_TARGET`) point at `Instances\CivTFG`, not
-  `TerraFirmaGreg-Modern`** - that instance was renamed/archived earlier and the tools
-  weren't updated for a while (see Pitfall #19); if the base instance ever moves/renames
-  again, update all 5 of these together.
+  mod jars happen to be installed locally, 41357 entries as of last build with a fresh
+  ProbeJS dump). **All four `DEFAULT_*` paths (and `recipe_editor.py`'s `INSTANCE_TARGET`)
+  point at `Instances\TerraFirmaGreg-Modern (1)`** - that's the instance with an actual
+  ProbeJS dump in it (`kubejs/probe/generated/globals.d.ts`); the base
+  `TerraFirmaGreg-Modern` was renamed/archived to `CivTFG` earlier and the tools briefly
+  pointed there instead (see Pitfall #19) before switching to `(1)` once it turned out to
+  be the one with a live dump. **If the dump ever moves to a different instance again
+  (or someone re-runs `/probejs dump` somewhere else), update all 5 of these together** -
+  don't assume whichever instance "feels current" actually has the dump; check
+  `kubejs/probe/generated/globals.d.ts` exists there first.
 - **`PROBEJS_REFERENCE.md`** (German): where ProbeJS's dump lives, what each generated file
   contains, for a future session that needs to parse more of it (e.g. block/fluid/entity
   registries, not just items).

@@ -23,7 +23,7 @@ RECIPES_JS = REPO_ROOT / "kubejs_scripts" / "server_scripts" / "science_recipes.
 PROGRESSION_JSON = REPO_ROOT / "config_files" / "s3_progression_mod" / "progression.json"
 ITEM_INDEX_JSON = Path(__file__).resolve().parent / "item_index.json"
 INSTANCE_TARGET = Path(
-    r"C:\Users\erikp\curseforge\minecraft\Instances\CivTFG"
+    r"C:\Users\erikp\curseforge\minecraft\Instances\TerraFirmaGreg-Modern (1)"
     r"\kubejs\server_scripts\s3_progression_mod\science_recipes.js"
 )
 
