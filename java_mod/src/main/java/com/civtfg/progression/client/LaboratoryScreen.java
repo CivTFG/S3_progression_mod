@@ -43,7 +43,14 @@ public class LaboratoryScreen extends AbstractContainerScreen<LaboratoryMenu> {
         int y = (height - imageHeight) / 2;
 
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        guiGraphics.blit(TEXTURE, x, y, 0, 0, imageWidth, imageHeight);
+        // The 7-arg blit(location, x, y, u, v, width, height) assumes the source texture
+        // is 256x256 (the vanilla convention - most vanilla GUI PNGs are padded to that
+        // even when only e.g. 176x166 is actually drawn). Our laboratory.png is a real,
+        // unpadded 176x166 file, so that overload sampled only its top-left ~121x108 px
+        // and stretched that over the full box - explicit textureWidth/textureHeight
+        // (the 9-arg overload) fixes it. Confirmed via javap against the real GuiGraphics
+        // class rather than assuming, same method as CLAUDE.md's other javap pitfalls.
+        guiGraphics.blit(TEXTURE, x, y, 0.0F, 0.0F, imageWidth, imageHeight, imageWidth, imageHeight);
 
         if (menu.getProgress() > 0) {
             int filled = (int) ((float) menu.getProgress() / menu.getMaxProgress() * PROGRESS_BAR_WIDTH);

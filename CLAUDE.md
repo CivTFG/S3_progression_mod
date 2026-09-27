@@ -662,6 +662,33 @@ actually relevant before assuming a jar or config change reached anywhere real:
     already claimed the name - check whether it's this exact shape first**, and either
     switch it to `var` or wrap it in a real IIFE like the file's other top-level consts.
 
+21. **A GUI background texture that isn't padded to 256x256 (the vanilla convention) gets
+    silently cropped-and-stretched by the 7-arg `GuiGraphics#blit(location, x, y, u, v,
+    width, height)` overload, which hardcodes an assumed source-texture size of 256x256.**
+    Reported symptom: the Laboratory GUI only showed "a bit more than four of the five
+    research slots and a bit more than one inventory row" - looked like the declared
+    176x166 image size was wrong and should instead be "around 120x105". It wasn't - the
+    real `laboratory.png` genuinely is 176x166 (confirmed via PIL), and `imageWidth`/
+    `imageHeight` in `LaboratoryScreen` were already correct. The actual bug:
+    `renderBg`'s `guiGraphics.blit(TEXTURE, x, y, 0, 0, imageWidth, imageHeight)` (7-arg,
+    confirmed via `javap` against the real `GuiGraphics` class) internally calls the 9-arg
+    overload with `textureWidth=256, textureHeight=256` hardcoded - the assumption baked
+    into vanilla, since most vanilla GUI PNGs (`gui/container/inventory.png` etc.) really
+    are padded to 256x256 even though only a smaller region is drawn. Our texture is a
+    real, unpadded 176x166 file, so GL normalizes the requested `u=0..176, v=0..166`
+    region against an assumed 256-wide/-tall canvas, sampling only the texture's top-left
+    `176*176/256 ≈ 121` by `166*166/256 ≈ 108` px and stretching that over the whole
+    176x166 draw box - which is *exactly* the "~120x105" the user reported seeing, once
+    you do the math (not a coincidence - it's the same 256-assumption showing up twice,
+    once in each dimension). Fixed with the 9-arg `blit` overload, passing
+    `imageWidth`/`imageHeight` again as the explicit `textureWidth`/`textureHeight`
+    arguments so GL knows the real texture size. **If a reported GUI-sizing bug's
+    numbers look like a clean fraction of the declared size (roughly `declared^2/256` in
+    each dimension), suspect this exact `blit`-overload issue before assuming the PNG
+    itself or the declared `imageWidth`/`imageHeight` is wrong** - check the actual PNG's
+    real pixel dimensions first (cheap, rules out "wrong file") before touching any
+    layout constant.
+
 ## Known issues / unfinished work
 
 - **Zero science-item recipes exist right now, anywhere, for any category** (Pitfall #2
@@ -686,7 +713,11 @@ actually relevant before assuming a jar or config change reached anywhere real:
   is real art now too (was a placeholder before, never documented as such since it predates
   this file) - not yet confirmed to line up correctly with `LaboratoryScreen`'s slot/
   progress-bar coordinates (`PROGRESS_BAR_X/Y/WIDTH/HEIGHT` in that class) since those were
-  tuned against the old placeholder.
+  tuned against the old placeholder. **Was rendering far too small/cropped** (Pitfall #21 -
+  `renderBg`'s `blit` call assumed the vanilla-convention 256x256 padded texture, but our
+  PNG is a real unpadded 176x166 file, so only its top-left ~121x108 px showed, stretched
+  over the full box) - fixed by passing explicit `textureWidth`/`textureHeight` to `blit`.
+  Not yet re-confirmed in-game since the fix.
 - **The ModernFix/pre-existing-world blockstate migration issue (Pitfall #10) was found but
   not resolved** — worth a proper fix (or at least a documented recommendation: e.g. "break
   and re-place any Laboratory placed before this update") before shipping the active/
