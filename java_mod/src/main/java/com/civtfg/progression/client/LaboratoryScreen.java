@@ -22,7 +22,7 @@ public class LaboratoryScreen extends AbstractContainerScreen<LaboratoryMenu> {
     // Progress bar recess, directly under the 5 laboratory slots - must match the
     // background texture's bar art and LaboratoryMenu's slot layout.
     private static final int PROGRESS_BAR_X = 45;
-    private static final int PROGRESS_BAR_Y = 58;
+    private static final int PROGRESS_BAR_Y = 64;
     private static final int PROGRESS_BAR_WIDTH = 88;
     private static final int PROGRESS_BAR_HEIGHT = 6;
     private static final int PROGRESS_BAR_COLOR = 0xFFFFFFFF;

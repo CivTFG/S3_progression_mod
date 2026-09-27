@@ -40,7 +40,7 @@ public class LaboratoryMenu extends AbstractContainerMenu {
 
         // 5 laboratory slots in a row
         int slotX = 44;
-        int slotY = 35;
+        int slotY = 41;
         for (int i = 0; i < LAB_SLOT_COUNT; i++) {
             addSlot(new SlotItemHandler(handler, i, slotX + i * 18, slotY));
         }
