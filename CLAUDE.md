@@ -232,6 +232,15 @@ machines (MARS). The old single-block "High Temp Precision Fabricator" LV gate a
 STEAM-tier possession/placement gate on the three LV generator blocks were both removed -
 subsumed by the generic "all LV machines" gate (see Pitfall #14).
 
+The two rocket gates each list **two** entity ids, not one: `ad_astra:tier_1_rocket` +
+`tfg:tier_1_double_rocket` for HV, `ad_astra:tier_2_rocket` + `tfg:tier_2_double_rocket` for
+EV. The modpack's own addon mod (`tfg`, not `ad_astra`) adds a 2-person "double rocket"
+variant alongside every Ad Astra rocket tier - found by grepping the ProbeJS dump for
+`double_rocket` (they don't show up in `tools/item_index.json` at all since that index only
+covers items, and rockets are entities). `tfg:tier_3_double_rocket`/`tier_4_double_rocket`
+also exist but are deliberately not gated - there's no tier beyond Mars/EV for them to gate
+against, same reasoning as `ad_astra:tier_3_rocket`/`tier_4_rocket` never having had gates.
+
 ### `science_recipes.js` (data-driven recipe generator)
 
 The `SCIENCE_RECIPES` array (between `// ===RECIPES-JSON-START/END===` markers) is written
@@ -628,6 +637,31 @@ actually relevant before assuming a jar or config change reached anywhere real:
     against a prior run (or just checking whether `DEFAULT_MODS_DIR.exists()`) would have
     caught this immediately.
 
+20. **A `const`/`let` declared directly inside a bare block (an `if { }`, not a function
+    body) at the top level of a KubeJS script can throw `TypeError: redeclaration of var X`
+    from Rhino on the very first, otherwise-untouched load - not a symptom of anything else
+    already using that name.** Real error, confirmed from `logs/latest.log`:
+    `s3_progression_mod/blocked_blocks.js#124: ... redeclaration of var MetaMachineBlock`,
+    on the mod's very first (and only) server-script load pass that session - "KubeJS
+    server scripts" was only ever loaded once, so this wasn't a stale-scope-from-reload
+    issue, and grepping the entire ProbeJS dump found no pre-existing global binding named
+    `MetaMachineBlock` either. The actual difference from every OTHER top-level `const` in
+    this same file (which all load fine) is that those are wrapped in a real IIFE
+    (`(() => { ... })()`, genuine function scope), while the two that failed
+    (`MetaMachineBlock`/`GTValues` inside `if (BLOCKED_BLOCKS_GTCEU_VOLTAGE_GATES.length > 0)
+    { const ... }`) sat directly inside a bare `if` block with no function wrapper - Rhino's
+    hoisting model for block-scoped `const`/`let` apparently double-declares the name in
+    that specific shape (bare block at script top level), and the two declarations collide.
+    Fixed by changing those two specific declarations from `const` to `var` (plain
+    script-scoped, no block-hoisting semantics, so only one declaration site exists) -
+    **not** by moving them into another IIFE, since `var`-not-`const` was the smaller,
+    already-consistent-with-Pitfall-#5 fix (same "Rhino doesn't fully support an ES6-ism"
+    family of bug as the object-spread issue). **If a future top-level `const`/`let` sitting
+    directly inside a bare `if`/`for`/`while` block (not a function) throws this same
+    "redeclaration of var" error on its very first load, don't assume some other script
+    already claimed the name - check whether it's this exact shape first**, and either
+    switch it to `var` or wrap it in a real IIFE like the file's other top-level consts.
+
 ## Known issues / unfinished work
 
 - **Zero science-item recipes exist right now, anywhere, for any category** (Pitfall #2
@@ -639,10 +673,11 @@ actually relevant before assuming a jar or config change reached anywhere real:
   exploration needs items from across biomes/dimensions, challenge needs rare/hard-to-get-
   early items at the edge of the unlocked age. This is very likely the next real content
   task, and now the biggest open item in the whole mod.
-- **The new `gtceu_voltage_interaction` gate mechanism (Pitfall #14) hasn't been live-tested
-  in-game yet** — needs someone to right-click an actual LV/MV/HV/EV/IV GTCEU machine before
-  and after the relevant tier is unlocked, and to confirm `Java.loadClass` for GTCEU's
-  `MetaMachineBlock`/`GTValues` isn't denied by KubeJS's class filter in practice.
+- **The `gtceu_voltage_interaction` gate mechanism failed to even load once already**
+  (Pitfall #20 - a Rhino block-scoped `const` bug, unrelated to GTCEU/KubeJS's class filter
+  itself, now fixed) - it still hasn't been confirmed actually *working* in-game (right-click
+  an actual LV/MV/HV/EV/IV GTCEU machine before and after the relevant tier is unlocked and
+  confirm it's blocked/allowed correctly), just confirmed to load without error.
 - **The 5 Laboratory tiers' block art has been corrected twice already** (Pitfall #18 -
   first a merged-face + quarter-turn issue, then a full front/back + left/right swap once
   seen in-game) - the CURRENT (third) face mapping is still only as good as the user's

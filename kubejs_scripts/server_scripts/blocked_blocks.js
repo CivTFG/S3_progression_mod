@@ -121,8 +121,14 @@ if (BLOCKED_BLOCKS_PLACEMENT_GATES.length > 0) {
 const BLOCKED_BLOCKS_GTCEU_VOLTAGE_GATES = BLOCKED_BLOCKS_GATES.filter(gate => gate.mechanism === 'gtceu_voltage_interaction')
 
 if (BLOCKED_BLOCKS_GTCEU_VOLTAGE_GATES.length > 0) {
-    const MetaMachineBlock = Java.loadClass('com.gregtechceu.gtceu.api.block.MetaMachineBlock')
-    const GTValues = Java.loadClass('com.gregtechceu.gtceu.api.GTValues')
+    // var, not const - Rhino throws "redeclaration of var X" for a const/let declared
+    // directly inside a bare `if { }` block at a script's top level (confirmed: this was
+    // the actual server-script load error). The other consts in this file avoid this by
+    // being wrapped in a real IIFE (function scope), not a bare block - var is plain
+    // script-scoped and doesn't have this issue. See Pitfall #5 in CLAUDE.md for the
+    // same class of Rhino ES6-ism quirk (object-spread).
+    var MetaMachineBlock = Java.loadClass('com.gregtechceu.gtceu.api.block.MetaMachineBlock')
+    var GTValues = Java.loadClass('com.gregtechceu.gtceu.api.GTValues')
 
     BlockEvents.rightClicked(event => {
         const block = event.block.blockState.getBlock()

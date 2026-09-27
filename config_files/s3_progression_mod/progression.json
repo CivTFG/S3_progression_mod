@@ -21,9 +21,9 @@
     { "requiresTier": "STEAM", "mechanism": "gtceu_voltage_interaction", "voltage": "LV", "message": "You don't know how to use LV machines yet." },
     { "requiresTier": "LV", "mechanism": "gtceu_voltage_interaction", "voltage": "MV", "message": "You don't know how to use MV machines yet." },
     { "requiresTier": "MV", "mechanism": "gtceu_voltage_interaction", "voltage": "HV", "message": "You don't know how to use HV machines yet." },
-    { "requiresTier": "HV", "mechanism": "interaction", "entity": true, "blocks": ["ad_astra:tier_1_rocket"], "message": "You aren't ready to launch this yet." },
+    { "requiresTier": "HV", "mechanism": "interaction", "entity": true, "blocks": ["ad_astra:tier_1_rocket", "tfg:tier_1_double_rocket"], "message": "You aren't ready to launch this yet." },
     { "requiresTier": "MOON", "mechanism": "gtceu_voltage_interaction", "voltage": "EV", "message": "You don't know how to use EV machines yet." },
-    { "requiresTier": "EV", "mechanism": "interaction", "entity": true, "blocks": ["ad_astra:tier_2_rocket"], "message": "You aren't ready to launch this yet." },
+    { "requiresTier": "EV", "mechanism": "interaction", "entity": true, "blocks": ["ad_astra:tier_2_rocket", "tfg:tier_2_double_rocket"], "message": "You aren't ready to launch this yet." },
     { "requiresTier": "MARS", "mechanism": "gtceu_voltage_interaction", "voltage": "IV", "message": "You don't know how to use IV machines yet." }
   ]
 }
