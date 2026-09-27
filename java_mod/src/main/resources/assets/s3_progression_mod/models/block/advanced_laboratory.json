@@ -4,9 +4,9 @@
     "particle": "s3_progression_mod:block/advanced_laboratory_east",
     "up": "s3_progression_mod:block/advanced_laboratory_top",
     "down": "s3_progression_mod:block/advanced_laboratory_bottom",
-    "north": "s3_progression_mod:block/advanced_laboratory_front",
-    "south": "s3_progression_mod:block/advanced_laboratory_back",
-    "east": "s3_progression_mod:block/advanced_laboratory_east",
-    "west": "s3_progression_mod:block/advanced_laboratory_west"
+    "north": "s3_progression_mod:block/advanced_laboratory_back",
+    "south": "s3_progression_mod:block/advanced_laboratory_front",
+    "east": "s3_progression_mod:block/advanced_laboratory_west",
+    "west": "s3_progression_mod:block/advanced_laboratory_east"
   }
 }

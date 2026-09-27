@@ -569,6 +569,16 @@ actually relevant before assuming a jar or config change reached anywhere real:
     a cube net has more than 3 visually-similar faces, verify with a pixel diff (`hash`/
     `!=`) before assuming any two are "the same texture used twice"** - eyeballing small
     sprites at a glance isn't reliable enough to catch a near-identical-but-distinct pair.
+    **Still wasn't fully right**: after seeing it in-game, front/back were swapped and
+    east/west were swapped (a full 180° flip of the horizontal ring, on top of the
+    rotation already applied) - current, actually-in-game-corrected mapping is
+    `north=<prefix>_back.png, south=<prefix>_front.png, east=<prefix>_west.png,
+    west=<prefix>_east.png` (i.e. the model's face *keys* are swapped, not the underlying
+    PNG files/cell derivation - `_front`/`_back`/`_east`/`_west` still refer to the exact
+    same cells as before, F/D/E/I are just wired to the opposite compass keys now). If
+    this is STILL wrong, don't re-derive from scratch again - ask the user to describe
+    what they see per-face directly this time (e.g. "north face shows X"), rather than a
+    relative correction, now that there's a second data point to anchor from.
 
 19. **A Python tool's hardcoded default path silently going stale (after the referenced
     CurseForge instance was renamed/archived elsewhere) doesn't error - it just quietly
@@ -604,14 +614,15 @@ actually relevant before assuming a jar or config change reached anywhere real:
   in-game yet** — needs someone to right-click an actual LV/MV/HV/EV/IV GTCEU machine before
   and after the relevant tier is unlocked, and to confirm `Java.loadClass` for GTCEU's
   `MetaMachineBlock`/`GTValues` isn't denied by KubeJS's class filter in practice.
-- **The 5 Laboratory tiers' block art has been corrected once already** (Pitfall #18 - the
-  first attempt merged two distinct ring faces into one and had the remaining faces
-  rotated a quarter-turn off) but the CURRENT (second) face mapping is still only verified
-  by careful derivation from the user's description, not by someone actually looking at
-  the placed block from all 4 sides plus top - treat it as "should be right" rather than
-  "confirmed right" until that happens. The 5 lab recipes (Pitfall - see "Recipe system"
-  section) and the tool path fix (Pitfall #19) are freshly done for the same reason and
-  share that same caveat.
+- **The 5 Laboratory tiers' block art has been corrected twice already** (Pitfall #18 -
+  first a merged-face + quarter-turn issue, then a full front/back + left/right swap once
+  seen in-game) - the CURRENT (third) face mapping is still only as good as the user's
+  latest report, not independently re-confirmed after this last fix. Check for a follow-up
+  report before assuming it's finally right. The GUI background (`textures/gui/laboratory.png`)
+  is real art now too (was a placeholder before, never documented as such since it predates
+  this file) - not yet confirmed to line up correctly with `LaboratoryScreen`'s slot/
+  progress-bar coordinates (`PROGRESS_BAR_X/Y/WIDTH/HEIGHT` in that class) since those were
+  tuned against the old placeholder.
 - **The ModernFix/pre-existing-world blockstate migration issue (Pitfall #10) was found but
   not resolved** — worth a proper fix (or at least a documented recommendation: e.g. "break
   and re-place any Laboratory placed before this update") before shipping the active/
