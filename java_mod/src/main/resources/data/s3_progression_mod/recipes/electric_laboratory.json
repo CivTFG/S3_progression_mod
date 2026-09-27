@@ -1,12 +1,12 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "AGA",
-    "ALA",
-    "AAA"
+    "SGS",
+    "SLS",
+    "SSS"
   ],
   "key": {
-    "A": { "item": "gtceu:aluminium_plate" },
+    "S": { "item": "gtceu:steel_plate" },
     "G": { "item": "minecraft:glass_pane" },
     "L": { "tag": "gtceu:circuits/lv" }
   },

@@ -1,12 +1,12 @@
 {
   "parent": "minecraft:block/cube",
   "textures": {
-    "particle": "s3_progression_mod:block/industrial_laboratory_side",
+    "particle": "s3_progression_mod:block/industrial_laboratory_east",
     "up": "s3_progression_mod:block/industrial_laboratory_top",
     "down": "s3_progression_mod:block/industrial_laboratory_bottom",
     "north": "s3_progression_mod:block/industrial_laboratory_front",
     "south": "s3_progression_mod:block/industrial_laboratory_back",
-    "east": "s3_progression_mod:block/industrial_laboratory_side",
-    "west": "s3_progression_mod:block/industrial_laboratory_side"
+    "east": "s3_progression_mod:block/industrial_laboratory_east",
+    "west": "s3_progression_mod:block/industrial_laboratory_west"
   }
 }

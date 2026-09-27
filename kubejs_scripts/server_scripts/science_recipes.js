@@ -35,39 +35,7 @@
 // needs to reach a Java varargs method.
 
 // ===RECIPES-JSON-START===
-const SCIENCE_RECIPES = [
-  { "age": "BRONZE", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "tfc:metal/ingot/copper", "count": 1 }] },
-  { "age": "BRONZE", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "tfc:metal/ingot/tin", "count": 1 }] },
-  { "age": "BRONZE", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "tfc:metal/ingot/bismuth_bronze", "count": 1 }] },
-  { "age": "BRONZE", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "tfc:metal/ingot/black_bronze", "count": 1 }] },
-  { "age": "BRONZE", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "tfc:metal/ingot/bronze", "count": 1 }] },
-  { "age": "IRON", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "tfc:metal/ingot/wrought_iron", "count": 1 }] },
-  { "age": "IRON", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:wrought_iron_plate", "count": 1 }] },
-  { "age": "STEEL", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "tfc:metal/ingot/steel", "count": 1 }] },
-  { "age": "STEEL", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "tfc:metal/ingot/pig_iron", "count": 1 }] },
-  { "age": "STEEL", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "tfc:metal/ingot/black_steel", "count": 1 }] },
-  { "age": "STEEL", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "tfc:metal/ingot/blue_steel", "count": 1 }] },
-  { "age": "STEEL", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "tfc:metal/ingot/red_steel", "count": 1 }] },
-  { "age": "STEAM", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:red_alloy_ingot", "count": 1 }] },
-  { "age": "STEAM", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:cobalt_brass_ingot", "count": 1 }] },
-  { "age": "STEAM", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:steel_frame", "count": 1 }] },
-  { "age": "LV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:aluminium_ingot", "count": 1 }] },
-  { "age": "LV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:cupronickel_ingot", "count": 1 }] },
-  { "age": "LV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:battery_alloy_ingot", "count": 1 }] },
-  { "age": "LV", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:battery_alloy_plate", "count": 1 }] },
-  { "age": "HV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:kanthal_ingot", "count": 2 }] },
-  { "age": "HV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:stainless_steel_ingot", "count": 2 }] },
-  { "age": "HV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:vanadium_steel_ingot", "count": 2 }] },
-  { "age": "HV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:nichrome_ingot", "count": 1 }] },
-  { "age": "HV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:titanium_ingot", "count": 1 }] },
-  { "age": "HV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:blue_alloy_ingot", "count": 1 }] },
-  { "age": "HV", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:ultimet_ingot", "count": 1 }] },
-  { "age": "EV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:hsla_steel_ingot", "count": 2 }] },
-  { "age": "EV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:tungsten_steel_ingot", "count": 2 }] },
-  { "age": "EV", "category": "MINING", "machine": "crafting_table", "output": 1, "inputs": [{ "item": "gtceu:titanium_carbide_ingot", "count": 1 }] },
-  { "age": "EV", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:tantalum_carbide_ingot", "count": 1 }] },
-  { "age": "EV", "category": "MINING", "machine": "crafting_table", "output": 2, "inputs": [{ "item": "gtceu:rtm_alloy_ingot", "count": 1 }] }
-]
+const SCIENCE_RECIPES = []
 // ===RECIPES-JSON-END===
 
 // GTCEU voltage-tier -> EU/t, for recipes that specify a "tier" instead of a raw voltage.

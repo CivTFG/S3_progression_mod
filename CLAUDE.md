@@ -122,10 +122,11 @@ README.md                        user-facing install/build instructions — keep
   successive tier's `LabTier.allowedAges` is the previous tier's set plus its own new pair
   of `ModScienceItems.Age`s (`ELITE` = every remaining Age, since Mars/EV is now the last
   pair - see Pitfall #16 for why this wasn't always true and what it looked like before).
-  The "only one active lab per tier" flag lives on the **team**, keyed by tier
-  (`ProgressionTiers.hasLaboratory(team, tier)`/`setHasLaboratory`), so a team can have up
-  to one functional lab of each of the 5 tiers simultaneously - placing an Industrial
-  Laboratory doesn't affect whether a Primitive one is still active, they're independent.
+  The "only one active lab" flag lives on the **team** (`ProgressionTiers.hasLaboratory(team)`/
+  `setHasLaboratory`) and is NOT per-tier - a team gets exactly one functional Laboratory
+  total, of whichever of the 5 tiers/variants was placed first; placing any other variant
+  while one is already active just gets a decorative copy, same as placing a second of the
+  same variant would (this was briefly per-tier instead, see Pitfall #17 - reverted).
   Each variant's own loot table drops itself (a real, distinct item per variant, not a
   shared/generic placeable). Two things had to be generalized away from a hardcoded single
   block when multiple variants were first introduced - if a sixth variant is ever added,
@@ -212,9 +213,13 @@ machine types (`crafting_table`, GTCEU recipe types with a `tier` for EU/t, Crea
 types with optional `heat`) are documented in the file's own header comment — read that
 before adding recipes, it's kept accurate.
 
-**Only the "mining" category is filled in so far** (37 recipes, BRONZE through IV).
-Farming/production/exploration/challenge were never designed via this system — see Known
-Issues below, this is very likely the next real content task.
+**Currently empty** (`SCIENCE_RECIPES = []`) - the user had all science-item recipes deleted
+outright (both this array's old mining-only content AND the 40 static
+`data/s3_progression_mod/recipes/<age>_<category>_science.json` files, which were the only
+working recipes for farming/production/exploration/challenge) to make room for a fresh
+design built around the new empty-science items (see Known Issues) instead of extending the
+old one. The 5 Laboratory-block recipes (`laboratory.json`,
+`industrial_laboratory.json`, etc.) are unaffected - only science-item recipes were wiped.
 
 ## Tools (`tools/`)
 
@@ -239,7 +244,12 @@ Issues below, this is very likely the next real content task.
      at all, see Pitfall #3), which nothing else here finds without someone manually
      looking the item up in EMI first.
   Re-run after mods change; `item_index.json` is gitignored (regenerable, tied to whichever
-  mod jars happen to be installed locally, ~39k entries as of last build).
+  mod jars happen to be installed locally, ~24.7k entries as of last build with no ProbeJS
+  dump available - was ~39k when one was). **All four `DEFAULT_*` paths (and
+  `recipe_editor.py`'s `INSTANCE_TARGET`) point at `Instances\CivTFG`, not
+  `TerraFirmaGreg-Modern`** - that instance was renamed/archived earlier and the tools
+  weren't updated for a while (see Pitfall #19); if the base instance ever moves/renames
+  again, update all 5 of these together.
 - **`PROBEJS_REFERENCE.md`** (German): where ProbeJS's dump lives, what each generated file
   contains, for a future session that needs to parse more of it (e.g. block/fluid/entity
   registries, not just items).
@@ -285,33 +295,16 @@ actually relevant before assuming a jar or config change reached anywhere real:
    `[2001.2.12,)`. When bumping a dependency range, check what's actually in the target
    pack's `mods/` folder, don't just match your dev instance.
 
-2. **Two parallel, overlapping recipe systems exist for science items — reconcile before
-   touching recipes.** `java_mod/src/main/resources/data/s3_progression_mod/recipes/*.json`
-   are **static** Forge datapack recipes, one per age×category, seemingly an early
-   placeholder set generated before `science_recipes.js` existed. `science_recipes.js` is
-   the newer, actively-maintained, data-driven generator — but it currently only covers the
-   `mining` category. This means:
-   - For **mining**, both the old static recipes *and* the new `science_recipes.js` ones
-     are simultaneously active for the same output items (e.g. `bronze_mining_science` can
-     currently be crafted via the old hardcoded "2x bronze ingot + flint + paper" recipe
-     *and* via 5 separate newer recipes) — almost certainly unintentional duplication.
-   - For **farming/production/exploration/challenge**, the static files are the *only*
-     working recipes right now (mining is the only category "upgraded" so far).
-   - The 5 `mv_*` static files (`mv_challenge_science.json` etc.) were **broken** for a
-     while (`ModScienceItems.Age` had no `MV`, so the result item didn't exist - see
-     Pitfall #7/#8) - now that `MV` is back (Pitfall #14), they load again, but their
-     ingredients (`tfg:mv_universal_circuit`) referenced an item that no longer exists
-     anywhere in the pack (confirmed: not in any mod jar's model paths or lang files) and
-     have been swapped to `#gtceu:circuits/mv` instead, the same tag already used by
-     `advanced_laboratory.json`'s recipe. **`MOON`/`MARS` have items registered
-     (`moon_*_science`/`mars_*_science`, with placeholder textures - see Known Issues) but
-     no recipes of any kind yet** - crafting them is intentionally out of scope until
-     someone designs them.
-   Before doing more recipe work: decide whether to (a) delete the static recipes for
-   categories `science_recipes.js` already covers, (b) migrate the remaining 4 categories'
-   static recipes into `science_recipes.js`'s format (probably the right call, for
-   consistency and so the recipe editor GUI can manage them too), or (c) something else —
-   this needs a real decision, not just deleting stuff unilaterally.
+2. **(Historical - resolved) Two parallel, overlapping recipe systems existed for science
+   items.** `data/s3_progression_mod/recipes/*.json` (static, one per age×category) and
+   `science_recipes.js` (data-driven, mining-only) were both live at once for mining,
+   producing unintentional duplicate recipes for the same output items; farming/production/
+   exploration/challenge only ever had the static files; MOON/MARS never had any recipes at
+   all. **Resolved by deleting all of it** - every static science-item recipe file and
+   `science_recipes.js`'s `SCIENCE_RECIPES` array (now `[]`) - to make room for a fresh
+   design built around the new empty-science items instead of reconciling two
+   already-incomplete systems (see Known Issues for the new design's status). If you're
+   looking for the old mining recipes, they're gone on purpose, not lost.
 
 3. **GTCEU generates most of its items (ingots/plates/dusts/etc., one set per material) at
    *runtime*, with no static model file and no per-item lang key.** Confirmed by checking
@@ -544,30 +537,77 @@ actually relevant before assuming a jar or config change reached anywhere real:
     `minecraft:block/cube` (6 slots: `up`/`down`/`north`/`south`/`east`/`west`) to actually
     use the new faces - a plain texture swap wouldn't have been enough here.
 
+17. **Pitfall #16's "one active lab per tier" was itself wrong - the user meant one active
+    lab total, period.** Reported after actually testing in-game (placing one of each of
+    the 5 tiers and seeing all 5 pulse/function at once). Fixed by reverting
+    `ProgressionTiers.hasLaboratory`/`setHasLaboratory` from `(Team, LabTier)` back to
+    plain `(Team)` - a single NBT boolean per team again, not one per tier. **Two "this
+    seems like a real bug" reports about the same feature, from the same user, in a row
+    (first "5 pulsing at once" dismissed as by-design, then this) is a strong signal to
+    re-examine the premise, not just the latest symptom** - the *design itself* (one lab
+    per tier) was the actual bug, inherited from Pitfall #16's concurrent-session commit
+    and never actually confirmed as intentional by the user themselves until asked twice.
+
+18. **A "cross/net" cube-texture template (6 faces laid out around a center square) needs
+    the north/south/east/west assignment nailed down explicitly - a plausible-looking
+    guess can still be a full quarter-turn off.** The delivered Laboratory art
+    (`labN.png`, 3x3 grid `ABC/DEF/GHI` with corners transparent) has 4 *distinct* ring
+    textures (D, E, F, I - confirmed by hashing: `D != F` for 4 of 5 tiers, only Primitive
+    happened to have near-identical D/F), not "front + a shared side" as first assumed -
+    that first attempt silently discarded D and duplicated F onto both east and west,
+    losing information. The user's correction ("front should be right, left should be
+    front, back should be left" - a rotation, described against what was actually
+    deployed) plus "top rotated 90° clockwise" was enough to solve for a unique, fully
+    self-consistent 4-cell assignment by elimination (3 stated relationships + exactly one
+    cell left over pins down the 4th). Final mapping: `north=F, east=E, south=D, west=I`,
+    `up=`cell B rotated 90° clockwise (`Image.transpose(Image.ROTATE_270)` in PIL - positive
+    "rotate" in PIL is counter-clockwise, so 270° CCW = 90° CW), `down=H` unchanged. **When
+    a cube net has more than 3 visually-similar faces, verify with a pixel diff (`hash`/
+    `!=`) before assuming any two are "the same texture used twice"** - eyeballing small
+    sprites at a glance isn't reliable enough to catch a near-identical-but-distinct pair.
+
+19. **A Python tool's hardcoded default path silently going stale (after the referenced
+    CurseForge instance was renamed/archived elsewhere) doesn't error - it just quietly
+    finds nothing, or falls back to whatever secondary sources still resolve.** Both
+    `tools/build_item_index.py`'s four `DEFAULT_*` paths and `tools/recipe_editor.py`'s
+    `INSTANCE_TARGET` still pointed at `Instances\TerraFirmaGreg-Modern`, which had been
+    renamed to `Instances\CivTFG` in an earlier session (the base instance is now a `.7z`
+    archive, not a live folder) - nobody had re-pointed the tools at the new name. Symptom
+    reported: newly-added items (the empty-science items) "not in the recipe editor's
+    index" - not because indexing them was ever broken, but because the whole tool had
+    been silently scanning a folder that no longer existed for the mods themselves (still
+    finding *some* items via the FTB Quests/EMI fallback sources, which happened to have
+    their own separate stale-but-still-valid copies, masking the fact that the primary,
+    most-authoritative source - actual mod jar model paths - was returning nothing at
+    all). **When a "feature X isn't showing up" report turns out to affect *everything*
+    equally (not just X), suspect the plumbing (paths/config) before the specific feature's
+    own logic** - re-running `build_item_index.py` and comparing the total item count
+    against a prior run (or just checking whether `DEFAULT_MODS_DIR.exists()`) would have
+    caught this immediately.
+
 ## Known issues / unfinished work
 
-- **Recipe system duplication and gaps** (Pitfall #2) — the biggest open item. Static
-  per-category recipe jsons vs. `science_recipes.js`; only `mining` is designed in the new
-  system.
-- **Farming/production/exploration/challenge science recipes were never designed**, and
-  **the new "empty" science items (`ModEmptyScienceItems`, one per Age) have zero recipes
-  in any system** - what crafts the empty item, and what empty+X produces each of the 5
-  categories, is still undesigned. The original design intent (from the user, for the 5
-  categories generally): farming cheap-but-picky (tailored to specific crops per tier),
-  production resource-expensive-but-automatable (GTCEU/Create machines — motors, conveyors,
-  circuits), exploration needs items from across biomes/dimensions, challenge needs
-  rare/hard-to-get-early items at the edge of the unlocked age.
+- **Zero science-item recipes exist right now, anywhere, for any category** (Pitfall #2
+  resolved by deletion) - not even mining. Every recipe (crafting the 10 new empty-science
+  items, and what empty+X produces each of the 5 real categories per tier) needs to be
+  designed from scratch. The original design intent (from the user, for the 5 categories
+  generally): farming cheap-but-picky (tailored to specific crops per tier), production
+  resource-expensive-but-automatable (GTCEU/Create machines — motors, conveyors, circuits),
+  exploration needs items from across biomes/dimensions, challenge needs rare/hard-to-get-
+  early items at the edge of the unlocked age. This is very likely the next real content
+  task, and now the biggest open item in the whole mod.
 - **The new `gtceu_voltage_interaction` gate mechanism (Pitfall #14) hasn't been live-tested
   in-game yet** — needs someone to right-click an actual LV/MV/HV/EV/IV GTCEU machine before
   and after the relevant tier is unlocked, and to confirm `Java.loadClass` for GTCEU's
   `MetaMachineBlock`/`GTValues` isn't denied by KubeJS's class filter in practice.
-- **The 5 Laboratory tiers' real block art and all 50 real science-item icons haven't been
-  seen in-game yet either** (Pitfall #16) - in particular, confirm the new 6-face
-  `minecraft:block/cube` model actually renders front/back distinctly from the side faces,
-  and that the front/back faces look right on all 4 horizontal orientations (the block has
-  no `FACING` property, so front/back are fixed to a constant world direction regardless of
-  which way the player was facing when they placed it - this was already true of the old
-  3-texture model too, just less noticeable when all 4 sides matched).
+- **The 5 Laboratory tiers' block art has been corrected once already** (Pitfall #18 - the
+  first attempt merged two distinct ring faces into one and had the remaining faces
+  rotated a quarter-turn off) but the CURRENT (second) face mapping is still only verified
+  by careful derivation from the user's description, not by someone actually looking at
+  the placed block from all 4 sides plus top - treat it as "should be right" rather than
+  "confirmed right" until that happens. The 5 lab recipes (Pitfall - see "Recipe system"
+  section) and the tool path fix (Pitfall #19) are freshly done for the same reason and
+  share that same caveat.
 - **The ModernFix/pre-existing-world blockstate migration issue (Pitfall #10) was found but
   not resolved** — worth a proper fix (or at least a documented recommendation: e.g. "break
   and re-place any Laboratory placed before this update") before shipping the active/

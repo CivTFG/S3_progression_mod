@@ -1,13 +1,13 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "PFP",
+    "PSP",
     "PCP",
     "PPP"
   ],
   "key": {
     "P": { "tag": "minecraft:planks" },
-    "F": { "item": "tfc:powder/flux" },
+    "S": { "item": "minecraft:stick" },
     "C": { "item": "tfc:metal/ingot/copper" }
   },
   "result": {

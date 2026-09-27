@@ -6,7 +6,7 @@
     "AAA"
   ],
   "key": {
-    "A": { "item": "gtceu:double_aluminium_plate" },
+    "A": { "item": "gtceu:aluminium_plate" },
     "G": { "item": "minecraft:glass_pane" },
     "M": { "tag": "gtceu:circuits/mv" }
   },

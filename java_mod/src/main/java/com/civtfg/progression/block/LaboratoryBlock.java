@@ -77,13 +77,14 @@ public class LaboratoryBlock extends BaseEntityBlock {
     }
 
     /**
-     * Whether this particular lab is the functional one for its {@link #tier} - only the
-     * first lab of a given tier placed in a team's claim gets ACTIVE=true (see
+     * Whether this particular lab is THE team's one functional Laboratory - only the
+     * first Laboratory (of ANY tier) placed in a team's claim gets ACTIVE=true (see
      * {@link #getStateForPlacement} and {@link ProgressionTiers#hasLaboratory}); every
-     * other same-tier placement (unclaimed chunk, or a team that already has one of this
-     * tier) is an inert decorative copy: no GUI, no ticking, just an "out of order"
-     * message on right-click. A team can have up to one functional lab per tier (5 total)
-     * active simultaneously. All variants share the same model/loot table structure per
+     * other placement (unclaimed chunk, or a team that already has one of any tier) is an
+     * inert decorative copy: no GUI, no ticking, just an "out of order" message on
+     * right-click. A team gets exactly **one** active lab total, not one per tier - this
+     * was briefly one-per-tier (see Pitfall #16), reverted per the user's explicit
+     * correction (Pitfall #17). All variants share the same model/loot table structure per
      * variant, so a broken decorative lab still drops - and can be re-placed as - a normal
      * laboratory item of that same variant.
      */
@@ -118,7 +119,7 @@ public class LaboratoryBlock extends BaseEntityBlock {
             return defaultBlockState();
         }
         Team team = ProgressionTiers.resolveTeam(level, context.getClickedPos());
-        boolean active = team != null && !ProgressionTiers.hasLaboratory(team, tier);
+        boolean active = team != null && !ProgressionTiers.hasLaboratory(team);
         return defaultBlockState().setValue(ACTIVE, active);
     }
 
@@ -128,7 +129,7 @@ public class LaboratoryBlock extends BaseEntityBlock {
         if (!level.isClientSide() && state.getValue(ACTIVE)) {
             Team team = ProgressionTiers.resolveTeam(level, pos);
             if (team != null) {
-                ProgressionTiers.setHasLaboratory(team, tier, true);
+                ProgressionTiers.setHasLaboratory(team, true);
             }
         }
     }
@@ -181,15 +182,14 @@ public class LaboratoryBlock extends BaseEntityBlock {
             if (level.getBlockEntity(pos) instanceof LaboratoryBlockEntity laboratory) {
                 laboratory.dropContents(level, pos);
             }
-            // The team's one functional lab of this tier was just destroyed - clear the
-            // flag so the next lab of this same tier they place (anywhere in their claim)
-            // can become the functional one again, rather than every future placement of
-            // this tier being permanently "out of order". Other tiers' active flags are
-            // untouched.
+            // The team's one functional lab was just destroyed - clear the flag so the
+            // next lab they place (any tier, anywhere in their claim) can become the
+            // functional one again, rather than every future placement being permanently
+            // "out of order".
             if (!level.isClientSide() && state.getValue(ACTIVE)) {
                 Team team = ProgressionTiers.resolveTeam(level, pos);
                 if (team != null) {
-                    ProgressionTiers.setHasLaboratory(team, tier, false);
+                    ProgressionTiers.setHasLaboratory(team, false);
                 }
             }
         }

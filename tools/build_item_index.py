@@ -69,10 +69,10 @@ import sys
 import zipfile
 from pathlib import Path
 
-DEFAULT_MODS_DIR = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\TerraFirmaGreg-Modern\mods")
-DEFAULT_QUESTS_DIR = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\TerraFirmaGreg-Modern\config\ftbquests\quests")
-DEFAULT_EMI_JSON = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\TerraFirmaGreg-Modern\emi.json")
-DEFAULT_PROBEJS_DTS = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\TerraFirmaGreg-Modern\kubejs\probe\generated\globals.d.ts")
+DEFAULT_MODS_DIR = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\CivTFG\mods")
+DEFAULT_QUESTS_DIR = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\CivTFG\config\ftbquests\quests")
+DEFAULT_EMI_JSON = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\CivTFG\emi.json")
+DEFAULT_PROBEJS_DTS = Path(r"C:\Users\erikp\curseforge\minecraft\Instances\CivTFG\kubejs\probe\generated\globals.d.ts")
 OUTPUT = Path(__file__).resolve().parent / "item_index.json"
 
 LANG_KEY_RE = re.compile(r"^(item|block)\.([^.]+)\.(.+)$")
