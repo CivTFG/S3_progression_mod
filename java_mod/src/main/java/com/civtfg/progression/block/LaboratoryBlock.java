@@ -129,7 +129,7 @@ public class LaboratoryBlock extends BaseEntityBlock {
         if (!level.isClientSide() && state.getValue(ACTIVE)) {
             Team team = ProgressionTiers.resolveTeam(level, pos);
             if (team != null) {
-                ProgressionTiers.setHasLaboratory(team, true);
+                ProgressionTiers.setHasLaboratory(team, pos);
             }
         }
     }
@@ -159,7 +159,7 @@ public class LaboratoryBlock extends BaseEntityBlock {
                                   InteractionHand hand, BlockHitResult hit) {
         if (!state.getValue(ACTIVE)) {
             if (!level.isClientSide) {
-                player.displayClientMessage(Component.translatable("block.s3_progression_mod.laboratory.out_of_order"), false);
+                player.displayClientMessage(outOfOrderMessage(level, pos), false);
             }
             return InteractionResult.sidedSuccess(level.isClientSide);
         }
@@ -176,6 +176,31 @@ public class LaboratoryBlock extends BaseEntityBlock {
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
 
+    /**
+     * @return the reason this decorative lab is out of order - server-side only
+     * ({@code resolveTeam}), only ever called from {@link #use} which already guards on
+     * {@code !level.isClientSide}. Distinguishes an unclaimed chunk (no team to credit
+     * research to at all) from a claimed chunk whose team already has a different,
+     * functional Laboratory elsewhere (names its exact position, so the player doesn't
+     * have to go hunting for it).
+     */
+    private static Component outOfOrderMessage(Level level, BlockPos pos) {
+        Team team = ProgressionTiers.resolveTeam(level, pos);
+        if (team == null) {
+            return Component.translatable("block.s3_progression_mod.laboratory.out_of_order.unclaimed");
+        }
+        BlockPos activePos = ProgressionTiers.getLaboratoryPos(team);
+        if (activePos != null) {
+            return Component.translatable("block.s3_progression_mod.laboratory.out_of_order.active_elsewhere",
+                    activePos.getX(), activePos.getY(), activePos.getZ());
+        }
+        // Shouldn't normally happen (this block is only ever ACTIVE=false because
+        // hasLaboratory(team) was already true at placement time), but the active lab
+        // could have been destroyed since without this decorative one being replaced -
+        // fall back to a generic message rather than a broken-looking one with no reason.
+        return Component.translatable("block.s3_progression_mod.laboratory.out_of_order");
+    }
+
     @Override
     public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
         if (!state.is(newState.getBlock())) {
@@ -189,7 +214,7 @@ public class LaboratoryBlock extends BaseEntityBlock {
             if (!level.isClientSide() && state.getValue(ACTIVE)) {
                 Team team = ProgressionTiers.resolveTeam(level, pos);
                 if (team != null) {
-                    ProgressionTiers.setHasLaboratory(team, false);
+                    ProgressionTiers.clearHasLaboratory(team);
                 }
             }
         }

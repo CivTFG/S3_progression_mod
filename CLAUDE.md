@@ -82,7 +82,31 @@ README.md                        user-facing install/build instructions — keep
 - **Tier gating**: GameStages (net.darkhax.gamestages) grants a stage per unlocked tier.
   Since GameStages is per-player, "team" progression is implemented by mirroring the same
   stage onto every online team member (with a login-sync for offline members) — see
-  `progression_listener.js` / `progression_commands.js`.
+  `progression_listener.js` / `progression_commands.js`. The exact craft that pushes a
+  tier's total past its threshold also triggers a **global** chat broadcast to every online
+  player ("`<team name>` just researched `<tier>`!"), not just the team's own members -
+  guarded by `previousTotal <= tierConfig.threshold` so it fires exactly once per
+  tier-unlock, not on every later craft of that same tier's items (which would otherwise
+  spam it, since `total > threshold` alone stays true forever after). Uses
+  `net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer()` directly (reflected
+  in via `Java.loadClass`, same pattern as everywhere else) rather than any KubeJS "global
+  server" binding, since this script lives in `startup_scripts` and its callback fires
+  later at runtime - deliberately not assuming which bindings are available in that
+  context without checking.
+- **`/progression teams`** (in `progression_commands.js`) lists every FTB Team whose
+  current tier isn't Bronze - i.e. has crossed at least one tier's threshold
+  (`ProgressionTiers.isUnlocked(team, 'BRONZE')`) - with its current tier
+  (`ProgressionTiers.currentProgress(team)`, or "Everything (fully researched)" once every
+  tier is done). Teams still in Bronze are deliberately omitted, not listed as "Bronze Age".
+- **Command permissions**: none of `/progression`'s three subcommands had a `.requires(...)`
+  at all until this was actually checked - every one defaulted to Brigadier's level 0 (any
+  survival player). `status`/`teams` are read-only and stay open on purpose. **`reset` is
+  now `.requires(src => src.hasPermission(2))` (op-only)** - it zeroes a team's counter for
+  a tier *and* immediately strips that tier's GameStage from every online team member, with
+  no confirmation - any team member (not just the owner) being able to do that to the whole
+  team unprompted was a real grief vector, not just a "self-cheat". If you add another
+  command here that mutates team state (not just reads it), default to op-only and open it
+  up deliberately, rather than the other way around.
 - **Gates** (`progression.json`'s `"gates"` array, one gating (multi-)block per tier
   transition): four mechanisms —
   - `interaction`: KubeJS `BlockEvents.rightClicked` cancels the interaction
@@ -112,7 +136,12 @@ README.md                        user-facing install/build instructions — keep
 - **Laboratory active/decorative split**: only the *first* Laboratory placed in a team's
   claim is functional; every other one (unclaimed chunk, or a team that already has one) is
   a decorative "out of order" copy — same block, `ACTIVE` blockstate property. See Pitfall
-  #4 for the exact bug this produced and how it's fixed now.
+  #4 for the exact bug this produced and how it's fixed now. Right-clicking a decorative
+  copy names the actual reason (`LaboratoryBlock#outOfOrderMessage`): "chunk isn't claimed
+  by any team" if `resolveTeam` returns null, or the exact position of the real active
+  Laboratory (`ProgressionTiers.getLaboratoryPos(team)`) otherwise - the has-laboratory NBT
+  went from a plain boolean to a compound storing `x`/`y`/`z` to make that position
+  available (see `ProgressionTiers.setHasLaboratory`/`clearHasLaboratory`).
 - **Five cumulative Laboratory variants** (`laboratory` aka "Primitive Laboratory" - kept
   its original registry name for save compatibility - `industrial_laboratory`,
   `electric_laboratory`, `advanced_laboratory`, `elite_laboratory`): five separate

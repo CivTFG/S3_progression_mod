@@ -6,6 +6,8 @@
   "block.s3_progression_mod.advanced_laboratory": "Advanced Laboratory",
   "block.s3_progression_mod.elite_laboratory": "Elite Laboratory",
   "block.s3_progression_mod.laboratory.out_of_order": "This laboratory is out of order",
+  "block.s3_progression_mod.laboratory.out_of_order.unclaimed": "This laboratory is out of order - the chunk isn't claimed by any team",
+  "block.s3_progression_mod.laboratory.out_of_order.active_elsewhere": "This laboratory is out of order - the active laboratory is at %s, %s, %s",
   "item.s3_progression_mod.bronze_empty_science": "Bronze Age Empty Science",
   "item.s3_progression_mod.bronze_mining_science": "Bronze Age Mining Science",
   "item.s3_progression_mod.bronze_farming_science": "Bronze Age Farming Science",

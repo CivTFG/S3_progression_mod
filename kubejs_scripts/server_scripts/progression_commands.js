@@ -84,6 +84,13 @@ ServerEvents.commandRegistry(event => {
                 )
             )
             .then(Commands.literal('reset')
+                // Op-only (level 2) - this zeroes a team's research counter for a tier and
+                // immediately strips that tier's GameStage from every online team member,
+                // with no confirmation and no consent from the rest of the team. Left
+                // open to any player was a real grief vector (a lone member could nuke the
+                // whole team's already-unlocked tier), not just a "self-cheat" - `status`/
+                // `teams` stay open since those are read-only.
+                .requires(src => src.hasPermission(2))
                 .then(Commands.argument('tier', Arguments.STRING.create(event))
                     .suggests(suggestTiers)
                     .executes(ctx => {
@@ -122,6 +129,37 @@ ServerEvents.commandRegistry(event => {
                         return 1
                     })
                 )
+            )
+            .then(Commands.literal('teams')
+                .executes(ctx => {
+                    const sender = ctx.source.entity
+                    if (!sender) {
+                        ctx.source.sendFailure(Component.red('This command can only be run by a player'))
+                        return 0
+                    }
+
+                    // "isUnlocked(team, 'BRONZE')" is exactly "has completed at least one
+                    // tier" - Bronze is the implicit starting tier nobody needs to research
+                    // into (see ProgressionTiers.getCurrentTierName's javadoc), so a team
+                    // that hasn't crossed Bronze's own threshold yet hasn't finished
+                    // anything - deliberately left out of this list.
+                    const ProgressionTiers = Java.loadClass('com.civtfg.progression.stage.ProgressionTiers')
+                    const teams = FTBTeamsAPI.api().getManager().getTeams()
+                    let count = 0
+                    teams.forEach(team => {
+                        if (!ProgressionTiers.isUnlocked(team, 'BRONZE')) {
+                            return
+                        }
+                        const progress = ProgressionTiers.currentProgress(team)
+                        const currentTierName = progress ? progress.displayName() : 'Everything (fully researched)'
+                        sender.tell(`${team.getName()}: ${currentTierName}`)
+                        count++
+                    })
+                    if (count === 0) {
+                        sender.tell('No team has progressed past Bronze yet')
+                    }
+                    return count
+                })
             )
     )
 })

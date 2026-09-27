@@ -53,7 +53,8 @@ ForgeEvents.onEvent('com.civtfg.progression.event.ProgressionEvent', event => {
     const team = claim.getTeamData().getTeam()
     const data = team.getExtraData()
     const research = data.getCompound(RESEARCH_KEY)
-    const total = research.getInt(tier) + value
+    const previousTotal = research.getInt(tier)
+    const total = previousTotal + value
     research.putInt(tier, total)
     data.put(RESEARCH_KEY, research)
     team.markDirty()
@@ -67,5 +68,18 @@ ForgeEvents.onEvent('com.civtfg.progression.event.ProgressionEvent', event => {
                 player.tell(`Your team's research has unlocked the ${tier} tier!`)
             }
         })
+
+        // Only announce once, on the exact craft that pushes the total past the
+        // threshold - "total > threshold" alone stays true on every later craft too
+        // (the team keeps crafting this tier's items - see Pitfall #13 for why that's
+        // now blocked, but this listener still fires for the crafts that got in before
+        // that fix took effect on a given world), which would otherwise spam the
+        // broadcast every time.
+        if (previousTotal <= tierConfig.threshold) {
+            const Component = Java.loadClass('net.minecraft.network.chat.Component')
+            const ServerLifecycleHooks = Java.loadClass('net.minecraftforge.server.ServerLifecycleHooks')
+            const message = Component.literal(`${team.getName()} just researched ${tierConfig.displayName}!`)
+            ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers().forEach(p => p.sendSystemMessage(message))
+        }
     }
 })
