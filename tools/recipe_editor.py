@@ -415,8 +415,11 @@ class RecipeEditorApp(tk.Tk):
         for age, category in groups:
             indices = [i for i in range(len(self.recipes))
                        if self.recipes[i]["age"] == age and self.recipes[i]["category"] == category]
-            if not indices:
-                continue
+            # Always show the Age/Category heading, even with zero recipes in it - this
+            # used to skip empty groups entirely, which made sense back when every group
+            # had at least a few recipes, but left the tree completely blank (no headings
+            # at all, nothing to even click "Add" under) once every science recipe was
+            # deleted to make room for a fresh design.
 
             age_node = f"age:{age}"
             if not self.tree.exists(age_node):
