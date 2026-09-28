@@ -152,7 +152,11 @@ ServerEvents.commandRegistry(event => {
                         }
                         const progress = ProgressionTiers.currentProgress(team)
                         const currentTierName = progress ? progress.displayName() : 'Everything (fully researched)'
-                        sender.tell(`${team.getName()}: ${currentTierName}`)
+                        // team.getName() is a Component (FTB Teams renders it as a
+                        // clickable/colored link), not a plain string - .getString()
+                        // extracts the visible text, same fix as progression_listener.js's
+                        // broadcast message.
+                        sender.tell(`${team.getName().getString()}: ${currentTierName}`)
                         count++
                     })
                     if (count === 0) {

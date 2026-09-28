@@ -82,7 +82,12 @@ ForgeEvents.onEvent('com.civtfg.progression.event.ProgressionEvent', event => {
             // this crashed the server the first time a tier threshold was crossed.
             var Component = Java.loadClass('net.minecraft.network.chat.Component')
             var ServerLifecycleHooks = Java.loadClass('net.minecraftforge.server.ServerLifecycleHooks')
-            var message = Component.literal(`${team.getName()} just researched ${tierConfig.displayName}!`)
+            // team.getName() returns a Component (FTB Teams renders team names as
+            // clickable/colored components, e.g. a gray "/ftbteams info <team>" link) -
+            // interpolating it directly into a template literal calls its toString(),
+            // which prints the raw component data dump instead of the visible name.
+            // .getString() extracts just the plain visible text.
+            var message = Component.literal(`${team.getName().getString()} just researched ${tierConfig.displayName}!`)
             ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers().forEach(p => p.sendSystemMessage(message))
         }
     }

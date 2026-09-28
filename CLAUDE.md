@@ -763,6 +763,24 @@ actually relevant before assuming a jar or config change reached anywhere real:
     a genuinely nonexistent item id (check `tools/item_index.json`/the actual mod jar
     first).** Fixed by switching to `gtceu:double_aluminium_plate`.
 
+24. **`Team#getName()` (FTB Teams) returns a `Component`, not a plain `String`** - FTB
+    Teams renders team names as a clickable/colored link (gray, `/ftbteams info <team>`),
+    so interpolating it directly into a JS template literal (`` `${team.getName()} ...` ``)
+    calls the Component's `toString()`, which prints the raw internal representation
+    (`literal{Joerning}[style={color=gray,clickEvent=ClickEvent{...}}]`) instead of the
+    visible name - reported via screenshot of the tier-unlock broadcast showing this raw
+    dump instead of "Joerning". Confirmed `Component#getString()` exists (a default method
+    on the interface, inherited via `FormattedText`) via `javap` against the actual mapped
+    class - it returns just the plain visible text, discarding style/click-event data.
+    Fixed both call sites that interpolate a team name into a message string
+    (`progression_listener.js`'s broadcast, `progression_commands.js`'s `/progression
+    teams`) by calling `.getString()` first. **Any FTB Teams/Forge `Component`-returning
+    getter (not just `Team#getName()`) will have this same issue if put directly into a
+    template literal or string concatenation** - call `.getString()` (or build a real
+    Component tree instead of stringifying, if the clickable/colored formatting should be
+    preserved) rather than assuming a getter named `getName`/`getTitle`/etc. returns a
+    plain string.
+
 ## Known issues / unfinished work
 
 - **Zero science-item recipes exist right now, anywhere, for any category** (Pitfall #2
