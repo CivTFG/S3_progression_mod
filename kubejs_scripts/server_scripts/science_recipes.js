@@ -103,8 +103,12 @@ ServerEvents.recipes(event => {
         }
 
         if (CREATE_MACHINES.indexOf(recipe.machine) !== -1) {
-            const recipeId = `s3_progression_mod:${recipe.machine}/${outputId.split(':')[1]}_${index}`
-            const builder = event.recipes.create[recipe.machine](outputString, inputStrings)
+            // var, not const - see Pitfall #20/#22 in CLAUDE.md: a const/let declared
+            // directly inside a bare if/for/while block can crash Rhino with
+            // "redeclaration of var" the first time this branch actually runs - this one
+            // was undetected only because SCIENCE_RECIPES is currently empty.
+            var recipeId = `s3_progression_mod:${recipe.machine}/${outputId.split(':')[1]}_${index}`
+            var builder = event.recipes.create[recipe.machine](outputString, inputStrings)
             builder.id(recipeId)
             builder.processingTime(recipe.duration || 100)
             if (recipe.heat === 'heated') builder.heated()
@@ -118,8 +122,12 @@ ServerEvents.recipes(event => {
             return
         }
 
-        const recipeId = `s3_progression_mod:${recipe.machine}/${outputId.split(':')[1]}_${index}`
-        const builder = event.recipes.gtceu[recipe.machine](recipeId)
+        // var, not const - must match the CREATE_MACHINES branch above, which already
+        // declares var recipeId/builder in this same function scope (var is
+        // function-scoped, so a const with the same name here would be a real
+        // redeclaration conflict, not just a Rhino quirk).
+        var recipeId = `s3_progression_mod:${recipe.machine}/${outputId.split(':')[1]}_${index}`
+        var builder = event.recipes.gtceu[recipe.machine](recipeId)
         builder.itemInputs.apply(builder, inputStrings)
         builder.itemOutputs(outputString)
         builder.duration(recipe.duration || 100)

@@ -76,9 +76,13 @@ ForgeEvents.onEvent('com.civtfg.progression.event.ProgressionEvent', event => {
         // that fix took effect on a given world), which would otherwise spam the
         // broadcast every time.
         if (previousTotal <= tierConfig.threshold) {
-            const Component = Java.loadClass('net.minecraft.network.chat.Component')
-            const ServerLifecycleHooks = Java.loadClass('net.minecraftforge.server.ServerLifecycleHooks')
-            const message = Component.literal(`${team.getName()} just researched ${tierConfig.displayName}!`)
+            // var, not const - see Pitfall #20 in CLAUDE.md: a const/let declared
+            // directly inside a bare if/for/while block (not a real function scope)
+            // makes Rhino double-declare the name and throw "redeclaration of var" -
+            // this crashed the server the first time a tier threshold was crossed.
+            var Component = Java.loadClass('net.minecraft.network.chat.Component')
+            var ServerLifecycleHooks = Java.loadClass('net.minecraftforge.server.ServerLifecycleHooks')
+            var message = Component.literal(`${team.getName()} just researched ${tierConfig.displayName}!`)
             ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers().forEach(p => p.sendSystemMessage(message))
         }
     }

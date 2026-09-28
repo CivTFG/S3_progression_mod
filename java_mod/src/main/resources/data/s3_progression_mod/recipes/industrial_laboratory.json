@@ -6,7 +6,7 @@
     "WWW"
   ],
   "key": {
-    "W": { "item": "tfc:metal/sheet/wrought_iron" },
+    "W": { "item": "gtceu:wrought_iron_plate" },
     "G": { "item": "minecraft:glass_pane" },
     "M": { "item": "create:precision_mechanism" }
   },

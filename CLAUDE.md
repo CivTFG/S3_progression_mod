@@ -661,6 +661,35 @@ actually relevant before assuming a jar or config change reached anywhere real:
     "redeclaration of var" error on its very first load, don't assume some other script
     already claimed the name - check whether it's this exact shape first**, and either
     switch it to `var` or wrap it in a real IIFE like the file's other top-level consts.
+    **Happened a second time, in a different file, once the code path actually ran**:
+    `progression_listener.js`'s tier-unlock broadcast (`const Component`/
+    `const ServerLifecycleHooks`/`const message` inside
+    `if (previousTotal <= tierConfig.threshold) { ... }`) crashed the server the first
+    time any team's research total actually crossed a tier threshold, since that branch
+    had never executed before (confirmed via the crash report -
+    `dev.latvian.mods.rhino.EvaluatorException: TypeError: redeclaration of var
+    Component`). **This bug doesn't surface at script-load time if the offending branch is
+    conditional and hasn't been hit yet** - unlike `blocked_blocks.js`'s occurrence (which
+    threw immediately on load), this one only threw once real gameplay actually reached
+    that specific `if` body for the first time. Fixed the same way (`const` → `var` for
+    all three declarations in that block, not just the two that used `Java.loadClass`).
+    **When auditing for this pattern, check every bare `if`/`for`/`while` block with a
+    `const`/`let` inside it, not just the ones that have already been observed to fail** -
+    a conditional branch that hasn't executed yet can be hiding the exact same bug. A
+    proactive audit after this second crash found one more: `science_recipes.js`'s
+    `CREATE_MACHINES` branch (`if (CREATE_MACHINES.indexOf(recipe.machine) !== -1) { const
+    recipeId = ...; const builder = ... }`) has the identical shape and is currently
+    silent for the same reason as `progression_listener.js` was - `SCIENCE_RECIPES` is
+    empty (see Known Issues), so that branch has never run. Fixed proactively (`var`
+    instead of `const`) before it gets the chance to crash the same way the moment someone
+    adds a real Create-machine recipe entry. **This surfaced a second, real gotcha when
+    fixing it: the sibling GTCEU branch further down in the same `forEach` callback
+    already declared its own `const recipeId`/`const builder`, in the same function scope**
+    - since `var` is function-scoped (not block-scoped), the two branches share one
+    `recipeId`/`builder` binding for the whole callback despite looking like separate
+    blocks, so `var` in one branch and `const` in the other for the same name is a genuine
+    JS redeclaration **syntax error**, not just a Rhino quirk - both branches had to be
+    switched to `var` together, not just the one that "needed" the fix.
 
 21. **A GUI background texture that isn't padded to 256x256 (the vanilla convention) gets
     silently cropped-and-stretched by the 7-arg `GuiGraphics#blit(location, x, y, u, v,
@@ -688,6 +717,51 @@ actually relevant before assuming a jar or config change reached anywhere real:
     itself or the declared `imageWidth`/`imageHeight` is wrong** - check the actual PNG's
     real pixel dimensions first (cheap, rules out "wrong file") before touching any
     layout constant.
+
+22. **The modpack ships a `reliable_remover` mod that strips specific items from creative
+    tabs/EMI/player inventories via `config/reliable_remover/<modid>.json` allowlists -
+    the item is still technically a registered, valid crafting ingredient, but no player
+    can ever legitimately obtain one, and EMI shows the recipe as if it doesn't exist at
+    all (not just a blank/missing icon for that one ingredient).** Reported symptom: the
+    Primitive and Industrial Laboratory recipes showed "no recipe" at all in EMI, while
+    Advanced only had its plate ingredient's icon blank (a *different* class of bug - see
+    Pitfall #23). Root-caused by finding `config/reliable_remover/tfc.json` in the actual
+    test instance: it `"action": "remove"`s essentially all of TFC's basic per-metal
+    `ingot`/`double_ingot`/`sheet`/`double_sheet`/`rod` items (including exactly
+    `tfc:metal/ingot/copper` and `tfc:metal/sheet/wrought_iron`, the two ingredients
+    Primitive/Industrial used) - this modpack (TerraFirmaGreg) intentionally replaces TFC's
+    own basic metal item chain with GTCEU's equivalent material items once GTCEU is the
+    primary tech mod, and removes the TFC originals from ever being visible/obtainable so
+    players don't get confused by two parallel copper-ingot-shaped items. Fixed by
+    switching those two ingredients to `gtceu:copper_double_ingot` /
+    `gtceu:wrought_iron_plate` (confirmed not present in `config/reliable_remover/gtceu.json`'s
+    own removal list, and confirmed real via `tools/item_index.json` - these are
+    runtime-generated GTCEU material items with no static model file in the jar, so
+    Pitfall #3's ProbeJS-dump-based lookup is the only way to verify them, `unzip -l` on
+    the actual `gtceu-*.jar` for a model path won't show anything and that's expected, not
+    a red flag). **Before using ANY TFC basic metal item id
+    (`tfc:metal/<ingot|sheet|rod|...>/<metal>`) in a new recipe, check it against every
+    `config/reliable_remover/*.json` in the actual target instance first** - a real,
+    valid, existing item can still be effectively dead for crafting purposes in this
+    specific modpack, and neither Minecraft's recipe loader nor EMI's basic display will
+    flag this as an error; it just quietly shows "no recipe" like the ingredient was never
+    there. Same caution likely applies to other early-game "basic material" items from any
+    mod TFG's GTCEU integration supersedes, not just TFC specifically.
+
+23. **`gtceu:aluminium_plate` was used in a recipe on the assumption that it existed
+    (based on a since-superseded peer-session recipe that apparently used the same id at
+    some earlier point) - it never actually existed.** Confirmed absent from
+    `tools/item_index.json` entirely (41k+ entries, built from real mod jar model paths +
+    a live ProbeJS dump - about as authoritative as this repo's tooling gets) - the only
+    aluminium plate GTCEU registers is `gtceu:double_aluminium_plate`. Unlike Pitfall #22's
+    Primitive/Industrial bug, a genuinely nonexistent item id doesn't hide the WHOLE
+    recipe from EMI - the recipe still shows, just with a blank/missing icon in that one
+    ingredient's slot ("the advanced one is missing the plates", as reported) - a useful
+    tell for telling the two failure classes apart at a glance: **recipe entirely absent
+    from EMI usually means a removed-but-real item (check `reliable_remover` configs
+    first, per Pitfall #22); recipe present but with a blank ingredient slot usually means
+    a genuinely nonexistent item id (check `tools/item_index.json`/the actual mod jar
+    first).** Fixed by switching to `gtceu:double_aluminium_plate`.
 
 ## Known issues / unfinished work
 
