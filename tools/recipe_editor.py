@@ -69,7 +69,8 @@ CREATE_MACHINE_STRESS = {
 def load_progression():
     data = json.loads(PROGRESSION_JSON.read_text(encoding="utf-8"))
     ages = [t["key"] for t in data["tiers"]]
-    categories = [c.upper() for c in data["categories"]]
+    # "EMPTY" = the age's empty-science token recipe (see science_recipes.js)
+    categories = [c.upper() for c in data["categories"]] + ["EMPTY"]
     return ages, categories
 
 
