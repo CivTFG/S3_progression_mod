@@ -1,6 +1,6 @@
 package com.civtfg.progression.mixin;
 
-import com.civtfg.progression.stage.GatedItemEnforcer;
+import com.civtfg.progression.stage.ItemGates;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
@@ -15,13 +15,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Pre-empts GatedItemEnforcer's tick-based sweep for vanilla-style crafting: cancels
- * taking a gated item out of a ResultSlot the instant it's clicked, instead of waiting up
- * to CHECK_INTERVAL_TICKS for the next sweep to strip it after the fact. Ported from
- * CivTFG-Progression's CraftingLockMixin (see anleitung_kiwi_mod.md) - reworked to check
- * against this mod's own gate list (ProgressionTiers.GATES via
- * GatedItemEnforcer.lockedMessage) instead of hardcoded items, so progression.json stays
- * the single source of truth.
+ * Enforces "crafting"/"gtceu_voltage_crafting" gates: cancels taking a gated item out of a
+ * vanilla-style ResultSlot the instant it's clicked. Ported from CivTFG-Progression's
+ * CraftingLockMixin (see anleitung_kiwi_mod.md) - reworked to check against this mod's own
+ * gate list (ProgressionTiers.GATES via ItemGates.craftingLockedMessage) instead of
+ * hardcoded items, so progression.json stays the single source of truth.
  */
 @Mixin(AbstractContainerMenu.class)
 public abstract class CraftingLockMixin {
@@ -42,7 +40,7 @@ public abstract class CraftingLockMixin {
             return;
         }
         ItemStack result = slot.getItem();
-        String message = GatedItemEnforcer.lockedMessage(serverPlayer, result);
+        String message = ItemGates.craftingLockedMessage(serverPlayer, result);
         if (message != null) {
             serverPlayer.displayClientMessage(Component.literal(message), false);
             ci.cancel();

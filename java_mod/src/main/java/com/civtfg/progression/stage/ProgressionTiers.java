@@ -11,6 +11,7 @@ import dev.ftb.mods.ftbteams.api.Team;
 import net.darkhax.gamestages.GameStageHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.fml.loading.FMLPaths;
@@ -62,7 +63,8 @@ public final class ProgressionTiers {
      * unlocked automation capable of placing blocks or acquiring items without the
      * matching player action ever firing).
      */
-    public record Gate(String requiresTier, String mechanism, boolean entity, String[] blocks, String message) {
+    public record Gate(String requiresTier, String mechanism, boolean entity, String[] blocks, String voltage,
+                       String[] exceptBlocks, String message) {
     }
 
     private record Config(String researchKey, String[] categories, Tier[] tiers, Gate[] gates) {
@@ -215,12 +217,15 @@ public final class ProgressionTiers {
 
     /**
      * @return the position of {@code team}'s one functional Laboratory, or {@code null} if
-     * it doesn't have one - used to tell a player standing at a decorative "out of order"
-     * copy exactly where the real one is.
+     * it doesn't have one or its position isn't known yet - used to tell a player standing
+     * at a decorative "out of order" copy exactly where the real one is. Labs placed before
+     * 0.5.0 stored a plain boolean here instead of a position compound; that reads as
+     * unknown (not 0,0,0) until the active lab re-records itself, see
+     * {@code LaboratoryBlockEntity#serverTick}.
      */
     @Nullable
     public static BlockPos getLaboratoryPos(Team team) {
-        if (!team.getExtraData().contains(HAS_LABORATORY_KEY)) {
+        if (!team.getExtraData().contains(HAS_LABORATORY_KEY, Tag.TAG_COMPOUND)) {
             return null;
         }
         CompoundTag tag = team.getExtraData().getCompound(HAS_LABORATORY_KEY);

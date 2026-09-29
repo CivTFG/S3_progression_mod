@@ -56,10 +56,11 @@ BLOCKED_BLOCKS_GATES.forEach(gate => {
         // -> revert -> correction packet back to the client) is visibly slow (reported:
         // several seconds). Kept as-is below since it's still needed as an
         // automation-proof backstop (a machine placing the block bypasses any check that
-        // only runs on a player's own right-click), but see the pre-emptive check further
-        // down for the fast path that avoids ever setting the block in the first place.
+        // only runs on a player's own right-click). The fast path that avoids ever setting
+        // the block in the first place is Java-side, PlacementGateEnforcer.
         gate.blocks.forEach(id => BlockEvents.placed(id, event => {
-            if (!event.player.stages.has(gate.stageId)) {
+            // event.player is null when a non-player entity placed it (EntityEventJS#getPlayer)
+            if (event.player && !event.player.stages.has(gate.stageId)) {
                 event.player.tell(gate.message)
                 event.cancel()
             }
@@ -81,68 +82,72 @@ BLOCKED_BLOCKS_GATES.forEach(gate => {
     }
 })
 
-// Fast pre-emptive path for "placement" gates: cancelling a right-click on ANY block while
-// holding a gated block item, before the placement can ever happen, so there's no
-// place-then-revert round trip to be slow on a dedicated server (see the comment on the
-// "placement" branch above). This intentionally checks the held item rather than a specific
-// target block, since we don't know in advance which position the new block would land on -
-// the tradeoff is that right-clicking some OTHER block (e.g. a chest) while merely holding a
-// gated item in hand also gets cancelled, even though nothing would have been placed. That's
-// judged an acceptable rare inconvenience (switch hands or empty your hand and try again)
-// against the confirmed, worse alternative of multi-second server lag on every real
-// placement attempt. Registered with no id filter (BlockEvents.rightClicked supports that -
-// it's an "extra", not a required argument) since it must fire for every block the player
-// might be placing against, not just one specific target block.
-const BLOCKED_BLOCKS_PLACEMENT_GATES = BLOCKED_BLOCKS_GATES.filter(gate => gate.mechanism === 'placement')
+// GTCEU machine voltage lookup shared by all three "gtceu_voltage_*" gates below. GTCEU has
+// no block tag for "every machine of tier X", but every GTCEU machine block (hatches/buses
+// included) is a MetaMachineBlock whose MachineDefinition#getTier() indexes GTValues.VN
+// (LV=1, MV=2, HV=3, EV=4, IV=5 - confirmed via javap against the actual gtceu jar). Which
+// blocks this actually matches can be listed in-game with tools/dump_gated_machines.js.
+// Wrapped in an IIFE so the Java.loadClass results live in function scope (Pitfall #20).
+const BLOCKED_BLOCKS_VOLTAGE_OF = (() => {
+    const MetaMachineBlock = Java.loadClass('com.gregtechceu.gtceu.api.block.MetaMachineBlock')
+    const GTValues = Java.loadClass('com.gregtechceu.gtceu.api.GTValues')
+    // instanceof, not MetaMachineBlock.isInstance(...) - Java.loadClass returns a Rhino class
+    // wrapper exposing only the class's own static members (Pitfall #25). String(...): VN
+    // holds Java strings, compared with === against progression.json's JS strings below.
+    return block => (block instanceof MetaMachineBlock) ? String(GTValues.VN[block.getDefinition().getTier()]) : null
+})()
 
-if (BLOCKED_BLOCKS_PLACEMENT_GATES.length > 0) {
-    BlockEvents.rightClicked(event => {
-        const heldItemId = event.item.id
-        for (let i = 0; i < BLOCKED_BLOCKS_PLACEMENT_GATES.length; i++) {
-            const gate = BLOCKED_BLOCKS_PLACEMENT_GATES[i]
-            if (gate.blocks.indexOf(heldItemId) !== -1 && !event.player.stages.has(gate.stageId)) {
-                event.player.tell(gate.message)
-                event.cancel()
-                return
-            }
+// @return the first of {@code gates} that locks {@code block} (a GTCEU machine of that
+// gate's voltage, not listed in its exceptBlocks) for {@code player}, or null.
+function blockedBlocksLockedVoltageGate(gates, block, blockId, player) {
+    var voltage = BLOCKED_BLOCKS_VOLTAGE_OF(block)
+    if (voltage === null) return null
+    for (var i = 0; i < gates.length; i++) {
+        var gate = gates[i]
+        var excepted = gate.exceptBlocks && gate.exceptBlocks.indexOf(blockId) !== -1
+        if (gate.voltage === voltage && !excepted && !player.stages.has(gate.stageId)) {
+            return gate
+        }
+    }
+    return null
+}
+
+const BLOCKED_BLOCKS_VOLTAGE_PLACEMENT_GATES = BLOCKED_BLOCKS_GATES.filter(gate => gate.mechanism === 'gtceu_voltage_placement')
+const BLOCKED_BLOCKS_VOLTAGE_INTERACTION_GATES = BLOCKED_BLOCKS_GATES.filter(gate => gate.mechanism === 'gtceu_voltage_interaction')
+
+// The fast path for "placement"/"gtceu_voltage_placement" (refusing the right-click before
+// anything is placed) lives in Java, PlacementGateEnforcer: it has to run on the client too,
+// otherwise the client predicts the placement and the item looks gone (it used to be here).
+// This script only keeps the BlockEvents.placed backstops for placements that don't come
+// from a player's right-click.
+
+// Backstop for "gtceu_voltage_placement", same reasoning as the "placement" branch above
+// (catches placements that didn't go through a player's own right-click). No id filter, so
+// it runs on every block placement - blockedBlocksLockedVoltageGate returns immediately for
+// anything that isn't a GTCEU machine.
+if (BLOCKED_BLOCKS_VOLTAGE_PLACEMENT_GATES.length > 0) {
+    BlockEvents.placed(event => {
+        // null when a non-player entity placed it (EntityEventJS#getPlayer)
+        if (!event.player) {
+            return
+        }
+        const gate = blockedBlocksLockedVoltageGate(BLOCKED_BLOCKS_VOLTAGE_PLACEMENT_GATES, event.block.blockState.getBlock(), String(event.block.id), event.player)
+        if (gate) {
+            event.player.tell(gate.message)
+            event.cancel()
         }
     })
 }
 
-// "gtceu_voltage_interaction" gates an entire GTCEU voltage tier's worth of machines at once
-// (e.g. "all LV machines") instead of listing individual block ids - GTCEU has no block tag
-// for "every machine of tier X" (only item tags like #gtceu:circuits/mv exist), but every
-// GTCEU machine block (including hatches/buses/casings - deliberately "all", not just the
-// simple single-block machines) is an instance of MetaMachineBlock, whose
-// MachineDefinition#getTier() gives the same voltage-tier index GTValues.VN is keyed by
-// (LV=1, MV=2, HV=3, EV=4, IV=5 - confirmed via javap against the actual gtceu jar). Only a
+// "gtceu_voltage_interaction": right-clicking a GTCEU machine of a gated voltage. Only a
 // plain player right-click is gated here, on purpose - no dispenser/fire-starter-style edge
 // cases to worry about for these, unlike the Bloomery/Blast Furnace gates above.
-const BLOCKED_BLOCKS_GTCEU_VOLTAGE_GATES = BLOCKED_BLOCKS_GATES.filter(gate => gate.mechanism === 'gtceu_voltage_interaction')
-
-if (BLOCKED_BLOCKS_GTCEU_VOLTAGE_GATES.length > 0) {
-    // var, not const - Rhino throws "redeclaration of var X" for a const/let declared
-    // directly inside a bare `if { }` block at a script's top level (confirmed: this was
-    // the actual server-script load error). The other consts in this file avoid this by
-    // being wrapped in a real IIFE (function scope), not a bare block - var is plain
-    // script-scoped and doesn't have this issue. See Pitfall #5 in CLAUDE.md for the
-    // same class of Rhino ES6-ism quirk (object-spread).
-    var MetaMachineBlock = Java.loadClass('com.gregtechceu.gtceu.api.block.MetaMachineBlock')
-    var GTValues = Java.loadClass('com.gregtechceu.gtceu.api.GTValues')
-
+if (BLOCKED_BLOCKS_VOLTAGE_INTERACTION_GATES.length > 0) {
     BlockEvents.rightClicked(event => {
-        const block = event.block.blockState.getBlock()
-        if (!MetaMachineBlock.isInstance(block)) {
-            return
-        }
-        const voltage = GTValues.VN[block.getDefinition().getTier()]
-        for (let i = 0; i < BLOCKED_BLOCKS_GTCEU_VOLTAGE_GATES.length; i++) {
-            const gate = BLOCKED_BLOCKS_GTCEU_VOLTAGE_GATES[i]
-            if (gate.voltage === voltage && !event.player.stages.has(gate.stageId)) {
-                event.player.tell(gate.message)
-                event.cancel()
-                return
-            }
+        const gate = blockedBlocksLockedVoltageGate(BLOCKED_BLOCKS_VOLTAGE_INTERACTION_GATES, event.block.blockState.getBlock(), String(event.block.id), event.player)
+        if (gate) {
+            event.player.tell(gate.message)
+            event.cancel()
         }
     })
 }

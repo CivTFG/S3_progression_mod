@@ -32,18 +32,21 @@ java_mod/                        Forge mod (Gradle project)
              ModMenuTypes.java, ModCreativeModeTabs.java
     stage/ProgressionTiers.java  loads config/s3_progression_mod/progression.json; the
                                  shared source of truth for tiers/gates/team-lab-tracking
-    stage/GatedItemEnforcer.java tick-based inventory scan enforcing "possession" gates;
-                                 also exposes lockedMessage(Player, ItemStack), the single
-                                 check both this sweep and the mixins below share
+    stage/GatedItemEnforcer.java tick-based inventory scan enforcing "possession" gates
+    stage/ItemGates.java         item-based gate checks (crafting + placement, by id or GTCEU
+                                 voltage via reflection) - craftingLockedMessage is the check
+                                 both crafting mixins share, placementLockedMessage is used
+                                 by PlacementGateEnforcer
+    stage/PlacementGateEnforcer.java  RightClickBlock listener on BOTH sides denying item
+                                 use for "placement"/"gtceu_voltage_placement" (Pitfall #26)
     stage/FireStartGateEnforcer.java  HIGHEST-priority listener on TFC's own
                                  StartFireEvent, closing the Firestarter gate-bypass (see
                                  Pitfall #11) — the one place this mod links directly
                                  against TFC's Java classes instead of just block-id strings
     mixin/CraftingLockMixin.java        server-side: cancels taking a gated item out of a
-                                 vanilla ResultSlot the instant it's clicked (possession
-                                 gates only) - pre-empts GatedItemEnforcer's up-to-1s sweep
-                                 delay for the common "craft it, grab it" case. Ported from
-                                 the sibling CivTFG-Progression project - see Pitfall #12
+                                 vanilla ResultSlot the instant it's clicked ("crafting"/
+                                 "gtceu_voltage_crafting" gates only). Ported from the
+                                 sibling CivTFG-Progression project - see Pitfall #12
     mixin/CraftingLockScreenMixin.java   client-side mirror of the above (same check, so
                                  the client never shows the item moving before a server
                                  correction reverts it)
@@ -62,6 +65,8 @@ config_files/s3_progression_mod/progression.json   repo copy of the single-sourc
 tools/
   recipe_editor.py               Tkinter GUI for editing science_recipes.js's recipe list
   build_item_index.py            builds tools/item_index.json (search index for the GUI)
+  dump_gated_machines.js         one-off KubeJS script: /progression_dump_machines lists every
+                                 block the voltage gates match (not shipped, see Configuration)
   item_index.json                generated, gitignored — regenerate, don't hand-edit
   PROBEJS_REFERENCE.md           (German) notes on ProbeJS's dump format, for reuse
 README.md                        user-facing install/build instructions — keep in sync
@@ -108,7 +113,7 @@ README.md                        user-facing install/build instructions — keep
   command here that mutates team state (not just reads it), default to op-only and open it
   up deliberately, rather than the other way around.
 - **Gates** (`progression.json`'s `"gates"` array, one gating (multi-)block per tier
-  transition): four mechanisms —
+  transition): seven mechanisms —
   - `interaction`: KubeJS `BlockEvents.rightClicked` cancels the interaction
     (`blocked_blocks.js`). For entities (e.g. rockets, which aren't blocks), use
     `ItemEvents.entityInteracted` instead and check `event.target.type` manually — there is
@@ -121,18 +126,29 @@ README.md                        user-facing install/build instructions — keep
   - `gtceu_voltage_interaction`: same idea as `interaction`, but for "every GTCEU machine of
     voltage tier X" at once instead of a fixed `blocks` list — see Pitfall #14 for how this
     avoids hand-maintaining a block-id list per voltage tier.
-  - `placement`: `BlockEvents.placed` cancels it.
-  - `possession`: **Java-side** (`GatedItemEnforcer`, a tick handler scanning inventories) —
-    used where placement/interaction gating alone is bypassable once a player has
-    automation capable of placing blocks or acquiring items without the gated action firing.
-    The tick sweep alone has a real gap though: up to `CHECK_INTERVAL_TICKS` (1s) between a
-    gated item being crafted and it actually getting stripped, during which a player can
-    grab it from the crafting result slot and, on a real server, do something with it before
-    the sweep catches up. `CraftingLockMixin`/`CraftingLockScreenMixin` close that
-    specific gap by intercepting the result-slot click itself (see Pitfall #12) - the tick
-    sweep still runs as the backstop for anything that doesn't go through a vanilla-style
-    crafting result slot (dispensers, GTCEU machine output slots, etc., none of which are
-    `ResultSlot`).
+  - `placement` / `gtceu_voltage_placement`: two layers - **Java** `PlacementGateEnforcer`
+    (the real gate for players: `RightClickBlock` on both logical sides, `setUseItem(DENY)`
+    so nothing is placed and the client never predicts it, while the clicked block can
+    still react, e.g. a chest still opens - see Pitfall #26), plus **KubeJS**
+    `BlockEvents.placed` backstops in `blocked_blocks.js` that revert placements not coming
+    from a player's right-click (`gtceu_voltage_placement` there via the shared helper
+    `blockedBlocksLockedVoltageGate`, honours `exceptBlocks`). `BlockEvents.placed`'s id
+    filter is optional (same `SUPPORTS_BLOCK` extra as `rightClicked`, confirmed via javap),
+    and `event.player` is null for non-player placements - both placed handlers skip those.
+  - `possession`: **Java-side** (`GatedItemEnforcer`, a tick handler scanning inventories
+    once per second and stripping gated items) — used where placement/interaction gating
+    alone is bypassable once a player has automation capable of placing blocks or acquiring
+    items without the gated action firing.
+  - `crafting` / `gtceu_voltage_crafting`: **Java-side** (`ItemGates.craftingLockedMessage`, called
+    from `CraftingLockMixin`/`CraftingLockScreenMixin`, see Pitfall #12) — cancels taking
+    the gated item out of a vanilla-style crafting `ResultSlot` the instant it's clicked.
+    `crafting` takes a `blocks` list of item ids; `gtceu_voltage_crafting` takes a
+    `voltage` and matches every GTCEU machine item of that tier (`BlockItem` whose block is
+    a `MetaMachineBlock`, voltage via `getDefinition().getTier()` → `GTValues.VN`, reached
+    by Java reflection so GTCEU stays a soft dependency). This used to be an implicit part
+    of `possession` and was split out into its own mechanism so it can be applied without
+    also stripping inventories. Only covers `ResultSlot`s (crafting table and similar) -
+    items produced in a GTCEU/Create machine's output slot aren't caught by this.
 - **Laboratory active/decorative split**: only the *first* Laboratory placed in a team's
   claim is functional; every other one (unclaimed chunk, or a team that already has one) is
   a decorative "out of order" copy — same block, `ACTIVE` blockstate property. See Pitfall
@@ -218,17 +234,36 @@ one file at runtime; edit it, not hardcoded copies)
   "gates": [
     { "requiresTier": "BRONZE", "mechanism": "interaction", "blocks": ["tfc:bloomery"], "message": "..." },
     { "requiresTier": "STEAM", "mechanism": "gtceu_voltage_interaction", "voltage": "LV", "message": "..." },
-    // mechanism: "interaction" | "placement" | "possession" | "gtceu_voltage_interaction";
+    // mechanism: "interaction" | "placement" | "possession" | "crafting" |
+    // "gtceu_voltage_interaction" | "gtceu_voltage_placement" | "gtceu_voltage_crafting";
     // add "entity": true for entity-type blocks (rockets); "blocks" is an array of ids
-    // (not used by "gtceu_voltage_interaction", which uses "voltage" instead - see Pitfall #14)
+    // (not used by the two "gtceu_voltage_*" mechanisms, which use "voltage" instead - see Pitfall #14,
+    // plus an optional "exceptBlocks" array of ids to leave out of that voltage tier)
   ]
 }
 ```
-Current gate list: bloomery (BRONZE, interaction), blast furnace (IRON, interaction), steam
-boilers (STEEL, placement+possession), all LV GTCEU machines (STEAM,
-`gtceu_voltage_interaction`), all MV GTCEU machines (LV), all HV GTCEU machines (MV), moon
-rocket (HV, entity), all EV GTCEU machines (MOON), mars rocket (EV, entity), all IV GTCEU
-machines (MARS). The old single-block "High Temp Precision Fabricator" LV gate and the old
+Current gate list - every block/machine gate is **interaction + placement + crafting**
+(user's choice; the steam boilers were placement+possession before, `possession` currently
+has no gates but is still supported): bloomery (BRONZE), blast furnace (IRON), all 11
+high-pressure steam machines `gtceu:hp_steam_*` - 3 boilers + 8 processing machines
+(STEEL), all LV GTCEU machines (STEAM, the three `gtceu_voltage_*` mechanisms), all MV
+GTCEU machines (LV), all HV GTCEU machines (MV), all EV GTCEU machines (MOON), all IV GTCEU
+machines (MARS). `blocked_blocks.js` also still has a hardcoded `minecraft:furnace`
+interaction gate behind LV - a relic from the very first version, deliberately left alone
+(user's call), not part of the gate system. Rockets (HV/EV) are
+entities, so only entering them is gated (placing a rocket item isn't a block placement).
+
+**GTCEU classifies all high-pressure steam machines (`gtceu:hp_steam_*`, including the 3
+Steel-tier boilers) as LV**, so the LV voltage gates would lock them until STEAM and make
+the boilers' own STEEL gates pointless. Both LV voltage gates therefore carry an optional
+`"exceptBlocks"` list with all 11 `hp_steam_*` ids, and the STEEL gates list exactly those
+same 11 ids instead (user's choice: HP steam = Steel tier, not Steam). Keep the STEEL
+`blocks` lists and the LV `exceptBlocks` lists identical - an id in only one of them is
+either ungated or double-gated until Steam. Found via
+`tools/dump_gated_machines.js`, a one-off in-game dump (`/progression_dump_machines`,
+op-only, not shipped) that lists exactly which blocks each voltage gate matches, using the
+same runtime check as the gates themselves - re-run it after a GTCEU/TFG update to catch
+new machines landing in an unexpected voltage tier. The old single-block "High Temp Precision Fabricator" LV gate and the old
 STEAM-tier possession/placement gate on the three LV generator blocks were both removed -
 subsumed by the generic "all LV machines" gate (see Pitfall #14).
 
@@ -523,7 +558,8 @@ actually relevant before assuming a jar or config change reached anywhere real:
     returns an `int` that indexes directly into `com.gregtechceu.gtceu.api.GTValues.VN`
     (`["ULV","LV","MV","HV","EV","IV","LuV",...]`) to get the voltage name. `blocked_blocks.js`
     loads both classes once via `Java.loadClass(...)` (same mechanism already used for this
-    mod's own `ProgressionTiers`) and does `MetaMachineBlock.isInstance(block)` +
+    mod's own `ProgressionTiers`) and does `block instanceof MetaMachineBlock` (originally
+    `MetaMachineBlock.isInstance(block)`, which never worked - see Pitfall #25) +
     `GTValues.VN[...]` inside a single `BlockEvents.rightClicked` with no id filter, checked
     against a new `"gtceu_voltage_interaction"` gate mechanism (`requiresTier` + `voltage`
     instead of a `blocks` list). This is *still* only a soft/"by id" reference to GTCEU (no
@@ -781,6 +817,40 @@ actually relevant before assuming a jar or config change reached anywhere real:
     preserved) rather than assuming a getter named `getName`/`getTitle`/etc. returns a
     plain string.
 
+25. **`Java.loadClass(...)` in KubeJS returns a Rhino class wrapper, not a
+    `java.lang.Class` - it only exposes that class's own static members, so
+    `SomeClass.isInstance(obj)` throws `InternalError: Java class "..." has no public
+    instance field or method named "isInstance"`.** Use JavaScript's `obj instanceof
+    SomeClass` instead (Rhino supports `instanceof` against these wrappers).
+    `blocked_blocks.js`'s `gtceu_voltage_interaction` handler (Pitfall #14) used
+    `MetaMachineBlock.isInstance(block)` from the start, so every LV/MV/HV/EV/IV
+    "can't use this machine yet" gate had never actually worked - it would have thrown on
+    the first right-click of any block, before ever reaching the cancel. It went unnoticed
+    because loading the class succeeds (the log shows "Loaded Java class ...
+    MetaMachineBlock"), and the gate had never been live-tested. Found only because
+    `tools/dump_gated_machines.js` copied the same call and failed with this exact
+    message when run in-game. **"The class loaded fine" says nothing about whether a
+    method call on the loaded class works** - calling `java.lang.Class` methods
+    (`isInstance`, `getName`, `getMethods`, ...) on a `Java.loadClass` result will fail the
+    same way.
+
+26. **A placement veto that only runs server-side (KubeJS server_scripts) makes the item
+    look gone on the client.** Reported: trying to place a placement-gated item showed the
+    lock message, but the item vanished from the hotbar - while further right-clicks still
+    showed the message, i.e. the server still had it. The client predicts the placement
+    locally (places a ghost block and decrements its own copy of the stack) before the
+    server answers; the server reverts the block but never resyncs the inventory, because
+    from its point of view nothing changed. Explicitly pushing the inventory back
+    (`containerMenu.sendAllDataToRemote()` right after `event.cancel()`) did **not** fix it
+    in practice. Fixed by moving the player-facing check to Java (`PlacementGateEnforcer`),
+    which runs on the client too: Forge fires `RightClickBlock` client-side inside
+    `MultiPlayerGameMode#performUseItemOn` and skips `ItemStack#useOn` when
+    `getUseItem() == DENY` (verified via javap), so the client never predicts the placement
+    at all. GameStages syncs stages to the client, so the same `ItemGates` check gives the
+    same answer on both sides (the crafting screen mixin already relied on this). **Any
+    other gate that stops something the client predicts (placing, using an item on a block)
+    has the same problem if it only runs server-side** - check both logical sides there too.
+
 ## Known issues / unfinished work
 
 - **Zero science-item recipes exist right now, anywhere, for any category** (Pitfall #2
@@ -792,11 +862,13 @@ actually relevant before assuming a jar or config change reached anywhere real:
   exploration needs items from across biomes/dimensions, challenge needs rare/hard-to-get-
   early items at the edge of the unlocked age. This is very likely the next real content
   task, and now the biggest open item in the whole mod.
-- **The `gtceu_voltage_interaction` gate mechanism failed to even load once already**
-  (Pitfall #20 - a Rhino block-scoped `const` bug, unrelated to GTCEU/KubeJS's class filter
-  itself, now fixed) - it still hasn't been confirmed actually *working* in-game (right-click
-  an actual LV/MV/HV/EV/IV GTCEU machine before and after the relevant tier is unlocked and
-  confirm it's blocked/allowed correctly), just confirmed to load without error.
+- **The `gtceu_voltage_interaction` gate mechanism has had two real bugs already** - it
+  failed to load once (Pitfall #20) and then turned out never to have worked at runtime
+  (Pitfall #25, `.isInstance` on a `Java.loadClass` wrapper). Both are fixed, but it still
+  hasn't been confirmed *working* in-game: right-click an actual LV/MV/HV/EV/IV GTCEU
+  machine before and after the relevant tier is unlocked and confirm it's blocked/allowed
+  correctly. The Java-side `gtceu_voltage_crafting` gate uses real Java reflection, not
+  `Java.loadClass`, so Pitfall #25 doesn't apply there.
 - **The 5 Laboratory tiers' block art has been corrected twice already** (Pitfall #18 -
   first a merged-face + quarter-turn issue, then a full front/back + left/right swap once
   seen in-game) - the CURRENT (third) face mapping is still only as good as the user's

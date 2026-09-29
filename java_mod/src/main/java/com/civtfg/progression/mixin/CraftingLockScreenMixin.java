@@ -1,6 +1,6 @@
 package com.civtfg.progression.mixin;
 
-import com.civtfg.progression.stage.GatedItemEnforcer;
+import com.civtfg.progression.stage.ItemGates;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * Client-side mirror of CraftingLockMixin: blocks the take-out visually/instantly on the
  * client too, instead of relying on the server rejecting it and the client's own local
  * prediction briefly showing the item move before the correction syncs back. Uses the same
- * GatedItemEnforcer.lockedMessage check as the server side (not a separate/hardcoded test
+ * ItemGates.craftingLockedMessage check as the server side (not a separate/hardcoded test
  * check) so the client can never drift from the real gate config in progression.json.
  */
 @Mixin(AbstractContainerScreen.class)
@@ -35,7 +35,7 @@ public abstract class CraftingLockScreenMixin {
         if (minecraft.player == null) {
             return;
         }
-        String message = GatedItemEnforcer.lockedMessage(minecraft.player, result);
+        String message = ItemGates.craftingLockedMessage(minecraft.player, result);
         if (message != null) {
             minecraft.player.displayClientMessage(Component.literal(message), true);
             ci.cancel();

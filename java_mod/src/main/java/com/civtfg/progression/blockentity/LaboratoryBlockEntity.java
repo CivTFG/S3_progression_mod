@@ -60,6 +60,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
     private final LazyOptional<IItemHandler> itemHandlerOptional = LazyOptional.of(() -> itemHandler);
 
     private boolean contentsChanged = false;
+    private boolean labPositionChecked = false;
     private int progress = 0;
     @Nullable
     private String currentTier = null;
@@ -140,6 +141,17 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, LaboratoryBlockEntity be) {
         boolean dirty = false;
+
+        // Only ACTIVE labs tick, so this lab is its team's functional one. Labs placed
+        // before 0.5.0 never recorded their position (legacy boolean flag), which made
+        // decorative copies report "active lab at 0, 0, 0" - re-record it once per load.
+        if (!be.labPositionChecked) {
+            be.labPositionChecked = true;
+            Team team = ProgressionTiers.resolveTeam(level, pos);
+            if (team != null && ProgressionTiers.getLaboratoryPos(team) == null) {
+                ProgressionTiers.setHasLaboratory(team, pos);
+            }
+        }
 
         // A slot was emptied or filled since the last tick: cancel whatever was in progress.
         if (be.contentsChanged) {
