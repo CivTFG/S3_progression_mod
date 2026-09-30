@@ -1,6 +1,7 @@
 // Keeps each player's tier game stages in sync with their FTB Team's per-tier research
 // totals (so progress made - or a reset - while a member was offline still applies once
-// they log back in), and provides commands to check/reset a single tier's progression.
+// they log back in), and provides the /progression admin commands (set a team's tier,
+// reset one tier, list teams).
 
 const FTBTeamsAPI = Java.loadClass('dev.ftb.mods.ftbteams.api.FTBTeamsAPI')
 
@@ -27,12 +28,23 @@ function getPlayerTeam(player) {
     return FTBTeamsAPI.api().getManager().getTeamForPlayer(player).orElse(null)
 }
 
-PlayerEvents.loggedIn(event => {
-    const player = event.player
-    const team = getPlayerTeam(player)
-    if (!team) return
+// FTB Teams' own lookup is by short name (what /ftbteams uses, e.g. "joerning" or a
+// player's name for a solo player's team); falls back to the visible display name,
+// case-insensitive, so the name shown by /progression teams works too.
+function findTeam(name) {
+    const manager = FTBTeamsAPI.api().getManager()
+    const byShortName = manager.getTeamByName(name).orElse(null)
+    if (byShortName) return byShortName
+    const wanted = String(name).toLowerCase()
+    let found = null
+    manager.getTeams().forEach(team => {
+        if (!found && String(team.getName().getString()).toLowerCase() === wanted) found = team
+    })
+    return found
+}
 
-    const research = team.getExtraData().getCompound(RESEARCH_KEY)
+// Grants/strips every tier stage on one player to match the team's research totals.
+function syncStages(player, research) {
     PROGRESSION.tiers.forEach(tierConfig => {
         const unlocked = research.getInt(tierConfig.key) > tierConfig.threshold
         if (unlocked && !player.stages.has(tierConfig.stageId)) {
@@ -41,6 +53,14 @@ PlayerEvents.loggedIn(event => {
             player.stages.remove(tierConfig.stageId)
         }
     })
+}
+
+PlayerEvents.loggedIn(event => {
+    const player = event.player
+    const team = getPlayerTeam(player)
+    if (!team) return
+
+    syncStages(player, team.getExtraData().getCompound(RESEARCH_KEY))
 })
 
 ServerEvents.commandRegistry(event => {
@@ -51,36 +71,69 @@ ServerEvents.commandRegistry(event => {
         return builder.buildFuture()
     }
 
+    function suggestSetTiers(ctx, builder) {
+        builder.suggest('NONE')
+        return suggestTiers(ctx, builder)
+    }
+
+    function suggestTeams(ctx, builder) {
+        FTBTeamsAPI.api().getManager().getTeams().forEach(team => builder.suggest(String(team.getShortName())))
+        return builder.buildFuture()
+    }
+
     event.register(
         Commands.literal('progression')
-            .then(Commands.literal('status')
-                .then(Commands.argument('tier', Arguments.STRING.create(event))
-                    .suggests(suggestTiers)
-                    .executes(ctx => {
-                        const sender = ctx.source.entity
-                        if (!sender) {
-                            ctx.source.sendFailure(Component.red('This command can only be run by a player'))
-                            return 0
-                        }
+            .then(Commands.literal('set')
+                // Op-only (level 2). "/progression set <team> <tier>" marks <tier> and every
+                // tier before it as researched and wipes every tier after it (research
+                // total 0, stage removed) - so it works both for raising and lowering a
+                // team. NONE wipes everything. Tiers at or below the target keep their total
+                // if it's already higher than needed, otherwise it's set to threshold + 1
+                // (the lowest "unlocked" value, see ProgressionTiers.isUnlocked).
+                .requires(src => src.hasPermission(2))
+                .then(Commands.argument('team', Arguments.STRING.create(event))
+                    .suggests(suggestTeams)
+                    .then(Commands.argument('tier', Arguments.STRING.create(event))
+                        .suggests(suggestSetTiers)
+                        .executes(ctx => {
+                            const teamName = Arguments.STRING.getResult(ctx, 'team')
+                            const tier = String(Arguments.STRING.getResult(ctx, 'tier')).toUpperCase()
 
-                        const tier = Arguments.STRING.getResult(ctx, 'tier')
-                        const tierConfig = tierByKey(tier)
-                        if (!tierConfig) {
-                            ctx.source.sendFailure(Component.red(`Unknown tier: '${tier}'`))
-                            return 0
-                        }
+                            const team = findTeam(teamName)
+                            if (!team) {
+                                ctx.source.sendFailure(Component.red(`Unknown team: '${teamName}'`))
+                                return 0
+                            }
 
-                        const team = getPlayerTeam(sender)
-                        if (!team) {
-                            sender.tell('You are not on a team')
-                            return 0
-                        }
+                            let targetIndex = -1
+                            for (var i = 0; i < PROGRESSION.tiers.length; i++) {
+                                if (PROGRESSION.tiers[i].key === tier) targetIndex = i
+                            }
+                            if (targetIndex === -1 && tier !== 'NONE') {
+                                ctx.source.sendFailure(Component.red(`Unknown tier: '${tier}'`))
+                                return 0
+                            }
 
-                        const total = team.getExtraData().getCompound(RESEARCH_KEY).getInt(tier)
-                        sender.tell(`${tier} research total: ${total} (unlocks above ${tierConfig.threshold})`)
-                        sender.tell(`${tier} unlocked: ${total > tierConfig.threshold}`)
-                        return 1
-                    })
+                            const data = team.getExtraData()
+                            const research = data.getCompound(RESEARCH_KEY)
+                            PROGRESSION.tiers.forEach((tierConfig, i) => {
+                                const unlockedTotal = tierConfig.threshold + 1
+                                const current = research.getInt(tierConfig.key)
+                                research.putInt(tierConfig.key, i <= targetIndex ? Math.max(current, unlockedTotal) : 0)
+                            })
+                            data.put(RESEARCH_KEY, research)
+                            team.markDirty()
+
+                            team.getOnlineMembers().forEach(member => syncStages(member, research))
+
+                            const name = team.getName().getString()
+                            const summary = targetIndex === -1
+                                ? `${name}: all research removed`
+                                : `${name}: researched up to and including ${PROGRESSION.tiers[targetIndex].displayName}`
+                            ctx.source.sendSuccess(() => Component.green(`${summary}. Offline members will be updated on their next login.`), true)
+                            return 1
+                        })
+                    )
                 )
             )
             .then(Commands.literal('reset')
@@ -88,8 +141,8 @@ ServerEvents.commandRegistry(event => {
                 // immediately strips that tier's GameStage from every online team member,
                 // with no confirmation and no consent from the rest of the team. Left
                 // open to any player was a real grief vector (a lone member could nuke the
-                // whole team's already-unlocked tier), not just a "self-cheat" - `status`/
-                // `teams` stay open since those are read-only.
+                // whole team's already-unlocked tier), not just a "self-cheat" - `teams`
+                // stays open since it's read-only.
                 .requires(src => src.hasPermission(2))
                 .then(Commands.argument('tier', Arguments.STRING.create(event))
                     .suggests(suggestTiers)

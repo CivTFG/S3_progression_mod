@@ -103,10 +103,17 @@ README.md                        user-facing install/build instructions — keep
   (`ProgressionTiers.isUnlocked(team, 'BRONZE')`) - with its current tier
   (`ProgressionTiers.currentProgress(team)`, or "Everything (fully researched)" once every
   tier is done). Teams still in Bronze are deliberately omitted, not listed as "Bronze Age".
-- **Command permissions**: none of `/progression`'s three subcommands had a `.requires(...)`
+- **`/progression set <team> <tier>`** (op-only, added in 0.7.0, replaced the old
+  `/progression status <tier>`): marks `<tier>` and every earlier tier as researched
+  (total raised to `threshold + 1` unless already higher) and zeroes every later tier, so it
+  raises and lowers alike; `NONE` wipes everything. Re-syncs stages of online members right
+  away (shared `syncStages`, same as the login handler), offline members on login. `<team>`
+  is looked up by FTB Teams short name first (`TeamManager#getTeamByName`, what `/ftbteams`
+  uses and what the suggestions list), then by visible display name, case-insensitive.
+- **Command permissions**: none of `/progression`'s subcommands had a `.requires(...)`
   at all until this was actually checked - every one defaulted to Brigadier's level 0 (any
-  survival player). `status`/`teams` are read-only and stay open on purpose. **`reset` is
-  now `.requires(src => src.hasPermission(2))` (op-only)** - it zeroes a team's counter for
+  survival player). `teams` is read-only and stays open on purpose. **`set` and `reset` are
+  `.requires(src => src.hasPermission(2))` (op-only)** - `reset` zeroes a team's counter for
   a tier *and* immediately strips that tier's GameStage from every online team member, with
   no confirmation - any team member (not just the owner) being able to do that to the whole
   team unprompted was a real grief vector, not just a "self-cheat". If you add another
