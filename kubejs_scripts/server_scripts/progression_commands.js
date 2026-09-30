@@ -72,8 +72,14 @@ ServerEvents.commandRegistry(event => {
         return suggestTiers(ctx, builder)
     }
 
+    // Party short names carry an id suffix ("Joerning#bf1..."), and Brigadier's string
+    // argument only allows 0-9 A-Z a-z _ - . + unquoted - so anything else is suggested
+    // in double quotes, which the same argument type accepts.
     function suggestTeams(ctx, builder) {
-        FTBTeamsAPI.api().getManager().getTeams().forEach(team => builder.suggest(String(team.getShortName())))
+        FTBTeamsAPI.api().getManager().getTeams().forEach(team => {
+            const shortName = String(team.getShortName())
+            builder.suggest(/^[0-9A-Za-z_.+-]+$/.test(shortName) ? shortName : `"${shortName.replace(/(["\\])/g, '\\$1')}"`)
+        })
         return builder.buildFuture()
     }
 
@@ -124,7 +130,10 @@ ServerEvents.commandRegistry(event => {
                             const summary = targetIndex === -1
                                 ? `${name}: all research removed`
                                 : `${name}: researched up to and including ${PROGRESSION.tiers[targetIndex].displayName}`
-                            ctx.source.sendSuccess(() => Component.green(`${summary}. Offline members will be updated on their next login.`), true)
+                            // Not sendSuccess: its 1.20.1 signature takes a Supplier<Component>,
+                            // but KubeJS turned the JS arrow function into a Component of its
+                            // own source text ("ArrowFunction (0) => {...}") instead of calling it.
+                            ctx.source.sendSystemMessage(Component.green(`${summary}. Offline members will be updated on their next login.`))
                             return 1
                         })
                     )
