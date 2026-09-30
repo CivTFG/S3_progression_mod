@@ -1,6 +1,7 @@
 package com.civtfg.progression.registry;
 
 import com.civtfg.progression.ProgressionMod;
+import com.civtfg.progression.menu.PrimitiveAssemblerMenu;
 import com.civtfg.progression.menu.LaboratoryMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraftforge.common.extensions.IForgeMenuType;
@@ -16,4 +17,8 @@ public class ModMenuTypes {
     public static final RegistryObject<MenuType<LaboratoryMenu>> LABORATORY =
             MENUS.register("laboratory", () -> IForgeMenuType.create(
                     (windowId, inv, data) -> new LaboratoryMenu(windowId, inv, data.readBlockPos())));
+
+    public static final RegistryObject<MenuType<PrimitiveAssemblerMenu>> PRIMITIVE_ASSEMBLER =
+            MENUS.register("primitive_assembler", () -> IForgeMenuType.create(
+                    (windowId, inv, data) -> new PrimitiveAssemblerMenu(windowId, inv, data.readBlockPos())));
 }

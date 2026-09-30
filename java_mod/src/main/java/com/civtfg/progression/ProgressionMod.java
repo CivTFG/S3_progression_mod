@@ -1,5 +1,6 @@
 package com.civtfg.progression;
 
+import com.civtfg.progression.client.PrimitiveAssemblerScreen;
 import com.civtfg.progression.client.LaboratoryScreen;
 import com.civtfg.progression.registry.ModBlockEntities;
 import com.civtfg.progression.registry.ModBlocks;
@@ -7,6 +8,7 @@ import com.civtfg.progression.registry.ModCreativeModeTabs;
 import com.civtfg.progression.registry.ModEmptyScienceItems;
 import com.civtfg.progression.registry.ModItems;
 import com.civtfg.progression.registry.ModMenuTypes;
+import com.civtfg.progression.registry.ModRecipeTypes;
 import com.civtfg.progression.registry.ModScienceItems;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraftforge.api.distmarker.Dist;
@@ -38,6 +40,8 @@ public class ProgressionMod {
         ModEmptyScienceItems.register();
         ModBlockEntities.BLOCK_ENTITIES.register(modEventBus);
         ModMenuTypes.MENUS.register(modEventBus);
+        ModRecipeTypes.RECIPE_TYPES.register(modEventBus);
+        ModRecipeTypes.RECIPE_SERIALIZERS.register(modEventBus);
         ModCreativeModeTabs.CREATIVE_MODE_TABS.register(modEventBus);
 
         // FMLClientSetupEvent fires after every mod's constructor has run and all
@@ -50,12 +54,14 @@ public class ProgressionMod {
 
     private void clientSetup(final FMLClientSetupEvent event) {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> LaboratoryScreen::registerScreen);
+        DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> PrimitiveAssemblerScreen::registerScreen);
     }
 
     private void buildCreativeModeTabContents(final BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
             LOGGER.info("[s3_progression_mod] BuildCreativeModeTabContentsEvent fired for FUNCTIONAL_BLOCKS, adding laboratory");
             event.accept(ModItems.LABORATORY_ITEM);
+            event.accept(ModItems.PRIMITIVE_ASSEMBLER_ITEM);
         }
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
             LOGGER.info("[s3_progression_mod] BuildCreativeModeTabContentsEvent fired for INGREDIENTS, adding science items");

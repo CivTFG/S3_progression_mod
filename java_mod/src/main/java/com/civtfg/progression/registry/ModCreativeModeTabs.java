@@ -23,7 +23,8 @@ public final class ModCreativeModeTabs {
                         output.accept(ModItems.ELECTRIC_LABORATORY_ITEM.get());
                         output.accept(ModItems.ADVANCED_LABORATORY_ITEM.get());
                         output.accept(ModItems.ELITE_LABORATORY_ITEM.get());
-                        int count = 5;
+                        output.accept(ModItems.PRIMITIVE_ASSEMBLER_ITEM.get());
+                        int count = 6;
                         for (ModScienceItems.Age age : ModScienceItems.Age.values()) {
                             for (ModScienceItems.Category category : ModScienceItems.Category.values()) {
                                 output.accept(ModScienceItems.get(age, category).get());

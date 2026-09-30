@@ -215,6 +215,29 @@ README.md                        user-facing install/build instructions — keep
   before anything is consumed), so a team can never waste items feeding an already-finished
   tier or an unreached future one.
 
+- **Primitive Assembler** (`primitive_assembler` block, `PrimitiveAssemblerBlock`/`PrimitiveAssemblerBlockEntity`/
+  `PrimitiveAssemblerMenu`/`PrimitiveAssemblerScreen`): an **unpowered** assembler using the GTCEU LV
+  Assembler's look (textures composited from the GTCEU jar's casing + overlay PNGs; front has
+  an animated `_active` variant, selected by the `working` blockstate). 9 item-in slots, 1
+  output slot, one 8000 mB input tank. Automation sees inputs as insert-only, output as
+  extract-only, tank as fill-only; players fill/drain the tank with buckets by right-clicking
+  (`FluidUtil.interactWithFluidHandler`, server-side only - the client has no tank state).
+  Has **its own recipe type** `s3_progression_mod:primitive_assembler`
+  (`recipe/PrimitiveAssemblerRecipe`, registered in `ModRecipeTypes`), so recipes are tailored to
+  this machine only. Add them as datapack JSON or from KubeJS via `event.custom({...})`:
+  ```json
+  { "type": "s3_progression_mod:primitive_assembler",
+    "inputs": [ { "ingredient": {"item": "minecraft:iron_ingot"}, "count": 2 }, { "tag": "forge:plates/copper" } ],
+    "fluid_input": { "fluid": "gtceu:soldering_alloy", "amount": 144 },
+    "output": { "item": "minecraft:piston", "count": 1 },
+    "duration": 100 }
+  ```
+  `inputs` max 9 entries (an entry is an ingredient, optionally wrapped as `ingredient` + `count`),
+  Clicking the tank in the GUI with a fluid container on the cursor empties/fills it (`clickMenuButton`).
+  `fluid_input` optional (`fluid` id or `tag`, plus `amount`), `duration` in ticks (default 100).
+  If several recipes match, the one with the most item inputs wins. No crafting recipe for the
+  machine itself exists yet, and it is not gated by `progression.json`.
+
 ## Configuration
 
 ### `progression.json` (single source of truth — both Java and every KubeJS script read this
@@ -283,16 +306,22 @@ as **strict JSON** (quoted keys, no comments inside it, no trailing commas) spec
 `tools/recipe_editor.py` can parse/rewrite it with Python's `json` module without needing a
 real JS parser. It's still a valid JS array literal to KubeJS. Entry shape and supported
 machine types (`crafting_table`, GTCEU recipe types with a `tier` for EU/t, Create recipe
-types with optional `heat`) are documented in the file's own header comment — read that
-before adding recipes, it's kept accurate.
+types with optional `heat`, optional `fluids` per entry) are documented in the file's own
+header comment — read that before adding recipes, it's kept accurate.
 
-**Currently empty** (`SCIENCE_RECIPES = []`) - the user had all science-item recipes deleted
-outright (both this array's old mining-only content AND the 40 static
-`data/s3_progression_mod/recipes/<age>_<category>_science.json` files, which were the only
-working recipes for farming/production/exploration/challenge) to make room for a fresh
-design built around the new empty-science items (see Known Issues) instead of extending the
-old one. The 5 Laboratory-block recipes (`laboratory.json`,
-`industrial_laboratory.json`, etc.) are unaffected - only science-item recipes were wiped.
+**Fluids** (`"fluids": [{"fluid": "...", "amount": mB}]`): on `crafting_table` a fluid is
+one grid slot filled from any fluid container (TFC `advanced_shapeless_crafting` +
+`TFC.ingredient.fluid`, same as the pack's water-dough recipes), tags like `#tfc:alcohols`
+allowed; on GTCEU machines it's `inputFluids`, on Create machines it's appended to the
+inputs - plain ids only there. **Gotcha, confirmed via javap on TFC 3.2.25**: TFC's
+`FluidContainerItem`/`BarrelBlockItem#getCraftingRemainingItem` return a fresh EMPTY
+container, so a crafting-table fluid recipe uses up the container's whole content - the
+`amount` is only a minimum.
+
+As of 0.7.0 the array holds ~510 recipes for all 10 ages (designed in a separate session on
+the `science-recipes` branch, merged into 0.7.0) - the old "currently empty" state after the
+first full wipe (Pitfall #2) no longer applies. The 5 Laboratory-block recipes
+(`laboratory.json`, `industrial_laboratory.json`, etc.) live separately as static JSON.
 
 ## Tools (`tools/`)
 

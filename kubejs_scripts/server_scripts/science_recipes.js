@@ -17,8 +17,25 @@
 //     "heat": "heated",             // Create mixing/compacting only - "heated" or "superheated"
 //     "inputs": [
 //       { "item": "tfc:metal/ingot/copper", "count": 1 }
+//     ],
+//     "fluids": [                   // optional - fluid ingredients, amount in mB
+//       { "fluid": "tfc:beer", "amount": 500 }
 //     ]
 //   }
+//
+// How "fluids" works per machine:
+//   - crafting_table: each fluid takes one grid slot, filled by any fluid container holding
+//     at least "amount" mB of it (wooden bucket, jug, a sealed-then-broken barrel, ...) - via
+//     TFC's advanced_shapeless_crafting + TFC.ingredient.fluid, the same mechanism the pack
+//     uses for dough (water from a bucket). Fluid tags work here ("#tfc:alcohols" = any of
+//     TFC's 8 base alcohols). NOTE: "amount" is only a minimum - TFC hands the container back
+//     EMPTY, so the whole content is used up (confirmed via javap: FluidContainerItem and
+//     BarrelBlockItem#getCraftingRemainingItem in TFC 3.2.25 both return a fresh empty
+//     container). A full 10 B barrel spent on a 500 mB recipe loses all 10 B.
+//   - GTCEU machines: real fluid input (builder.inputFluids), exact amount consumed. Plain
+//     fluid ids only, no tags.
+//   - Create machines: added to the inputs list (mixing/compacting from the basin, filling
+//     from the spout). Plain fluid ids only, no tags.
 //
 // Create's stress (SU) cost is a fixed property of the machine block itself, not of a
 // recipe, so there's no "stress" field here - see CREATE_MACHINE_STRESS below for
@@ -617,11 +634,42 @@ ServerEvents.recipes(event => {
         const outputCount = recipe.output || 1
         const outputString = outputCount > 1 ? `${outputCount}x ${outputId}` : outputId
         const inputStrings = recipe.inputs.map(ingredientString)
+        const fluids = recipe.fluids || []
+        for (var f = 0; f < fluids.length; f++) {
+            if (!fluids[f].fluid || !(fluids[f].amount > 0)) {
+                console.error(`[s3_progression_mod] science_recipes[${index}]: fluid #${f} needs a "fluid" id and a positive "amount" (mB)`)
+                return
+            }
+        }
 
         if (recipe.machine === 'crafting_table') {
-            event.shapeless(outputString, inputStrings)
+            if (fluids.length === 0) {
+                event.shapeless(outputString, inputStrings)
+                return
+            }
+            // One ingredient per grid slot - "2x item" is expanded by hand here rather than
+            // relying on the TFC recipe schema to unwrap counts the way event.shapeless does.
+            var gridIngredients = []
+            recipe.inputs.forEach(input => {
+                for (var n = 0; n < input.count; n++) gridIngredients.push(input.item)
+            })
+            fluids.forEach(fluid => gridIngredients.push(TFC.ingredient.fluid(TFC.fluidStackIngredient(fluid.fluid, fluid.amount))))
+            if (gridIngredients.length > 9) {
+                console.error(`[s3_progression_mod] science_recipes[${index}]: ${gridIngredients.length} ingredients (items + fluids) don't fit a 3x3 crafting grid`)
+                return
+            }
+            event.recipes.tfc.advanced_shapeless_crafting(TFC.isp.of(outputString), gridIngredients)
+                .id(`s3_progression_mod:crafting/${outputId.split(':')[1]}_${index}`)
             return
         }
+
+        for (var t = 0; t < fluids.length; t++) {
+            if (String(fluids[t].fluid).charAt(0) === '#') {
+                console.error(`[s3_progression_mod] science_recipes[${index}]: fluid tag "${fluids[t].fluid}" - only crafting_table recipes support fluid tags, use a plain fluid id for machine "${recipe.machine}"`)
+                return
+            }
+        }
+        const fluidStacks = fluids.map(fluid => Fluid.of(fluid.fluid, fluid.amount))
 
         if (CREATE_MACHINES.indexOf(recipe.machine) !== -1) {
             // var, not const - see Pitfall #20/#22 in CLAUDE.md: a const/let declared
@@ -629,7 +677,7 @@ ServerEvents.recipes(event => {
             // "redeclaration of var" the first time this branch actually runs - this one
             // was undetected only because SCIENCE_RECIPES is currently empty.
             var recipeId = `s3_progression_mod:${recipe.machine}/${outputId.split(':')[1]}_${index}`
-            var builder = event.recipes.create[recipe.machine](outputString, inputStrings)
+            var builder = event.recipes.create[recipe.machine](outputString, inputStrings.concat(fluidStacks))
             builder.id(recipeId)
             builder.processingTime(recipe.duration || 100)
             if (recipe.heat === 'heated') builder.heated()
@@ -652,6 +700,7 @@ ServerEvents.recipes(event => {
         var recipeId = `s3_progression_mod:${outputId.split(':')[1]}_${index}`
         var builder = event.recipes.gtceu[recipe.machine](recipeId)
         builder.itemInputs.apply(builder, inputStrings)
+        if (fluidStacks.length > 0) builder.inputFluids.apply(builder, fluidStacks)
         builder.itemOutputs(outputString)
         builder.duration(recipe.duration || 100)
         builder.EUt(voltage, 1)

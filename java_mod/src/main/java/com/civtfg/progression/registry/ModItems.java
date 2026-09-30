@@ -26,4 +26,7 @@ public class ModItems {
 
     public static final RegistryObject<Item> ELITE_LABORATORY_ITEM = ITEMS.register("elite_laboratory",
             () -> new BlockItem(ModBlocks.ELITE_LABORATORY.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> PRIMITIVE_ASSEMBLER_ITEM = ITEMS.register("primitive_assembler",
+            () -> new BlockItem(ModBlocks.PRIMITIVE_ASSEMBLER.get(), new Item.Properties()));
 }

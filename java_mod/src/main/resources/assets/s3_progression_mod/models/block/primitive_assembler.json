@@ -1,0 +1,9 @@
+{
+  "parent": "minecraft:block/orientable_with_bottom",
+  "textures": {
+    "top": "s3_progression_mod:block/primitive_assembler_top",
+    "bottom": "s3_progression_mod:block/primitive_assembler_bottom",
+    "front": "s3_progression_mod:block/primitive_assembler_front",
+    "side": "s3_progression_mod:block/primitive_assembler_side"
+  }
+}

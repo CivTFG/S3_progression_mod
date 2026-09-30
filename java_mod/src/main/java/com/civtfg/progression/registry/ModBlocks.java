@@ -1,6 +1,7 @@
 package com.civtfg.progression.registry;
 
 import com.civtfg.progression.ProgressionMod;
+import com.civtfg.progression.block.PrimitiveAssemblerBlock;
 import com.civtfg.progression.block.LaboratoryBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -74,4 +75,11 @@ public class ModBlocks {
                     .requiresCorrectToolForDrops()
                     .noOcclusion(),
                     LaboratoryBlock.LabTier.ELITE));
+
+    /** Unpowered assembler (LV Assembler look-alike) with its own recipe type - see PrimitiveAssemblerBlockEntity. */
+    public static final RegistryObject<Block> PRIMITIVE_ASSEMBLER = BLOCKS.register("primitive_assembler",
+            () -> new PrimitiveAssemblerBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.METAL)
+                    .strength(3.5f)
+                    .sound(SoundType.METAL)));
 }

@@ -13,6 +13,7 @@ opens but reports zero matches.
 Run with:  python tools/recipe_editor.py
 """
 import json
+import re
 import shutil
 import tkinter as tk
 from pathlib import Path
@@ -26,6 +27,15 @@ INSTANCE_TARGET = Path(
     r"C:\Users\erikp\curseforge\minecraft\Instances\TerraFirmaGreg-Modern (1)"
     r"\kubejs\server_scripts\s3_progression_mod\science_recipes.js"
 )
+# Fluid search reads ProbeJS's dump directly (its `type Fluid = "a:b" | ...` union lists
+# every registered fluid) - same instance as INSTANCE_TARGET, see CLAUDE.md Pitfall #19.
+PROBEJS_GLOBALS = Path(
+    r"C:\Users\erikp\curseforge\minecraft\Instances\TerraFirmaGreg-Modern (1)"
+    r"\kubejs\probe\generated\globals.d.ts"
+)
+# Offered in the fluid search alongside plain ids - tags only work for crafting_table
+# recipes (see science_recipes.js's header comment).
+FLUID_TAGS = ["#tfc:alcohols", "#tfc:any_water", "#tfc:fresh_water", "#tfc:milks"]
 
 START_MARKER = "// ===RECIPES-JSON-START===\nconst SCIENCE_RECIPES = "
 END_MARKER = "\n// ===RECIPES-JSON-END==="
@@ -34,6 +44,7 @@ GTCEU_MACHINES = [
     "assembler", "macerator", "mixer", "autoclave", "extruder",
     "arc_furnace", "circuit_assembler", "chemical_reactor", "large_chemical_reactor",
     "assembly_line", "electric_furnace", "bender", "cutter", "polarizer",
+    "fluid_solidifier", "chemical_bath", "brewery", "fermenter",
 ]
 # Confirmed against com.simibubi.create.AllRecipeTypes in create-1.20.1-6.0.8.jar.
 # "mechanical_crafting" (shaped grid) and "sequenced_assembly" (multi-step) are left out -
@@ -80,6 +91,20 @@ def load_item_index():
     return [tuple(entry) for entry in json.loads(ITEM_INDEX_JSON.read_text(encoding="utf-8"))]
 
 
+def load_fluid_index():
+    """(id, label) pairs for the fluid picker, from ProbeJS's Fluid union. "flowing_*"
+    variants are skipped - they're the in-world flowing blocks, never a recipe fluid."""
+    fluids = [(tag, "fluid tag (crafting_table only)") for tag in FLUID_TAGS]
+    if not PROBEJS_GLOBALS.exists():
+        return fluids
+    for line in PROBEJS_GLOBALS.read_text(encoding="utf-8", errors="replace").splitlines():
+        if line.lstrip().startswith("type Fluid = "):
+            ids = re.findall(r'"([a-z0-9_.-]+:[a-z0-9_./-]+)"', line)
+            fluids += [(i, i.split(":", 1)[1].replace("_", " ")) for i in ids if ":flowing_" not in i]
+            break
+    return fluids
+
+
 def read_recipes():
     text = RECIPES_JS.read_text(encoding="utf-8")
     start = text.index(START_MARKER) + len(START_MARKER)
@@ -107,12 +132,14 @@ class ItemPickerDialog(tk.Toplevel):
 
     MAX_RESULTS = 200
 
-    def __init__(self, parent, item_index):
+    def __init__(self, parent, item_index, title="Search items",
+                 empty_message="No item index found - run tools/build_item_index.py first."):
         super().__init__(parent)
-        self.title("Search items")
+        self.title(title)
         self.geometry("640x420")
         self.result = None
         self.item_index = item_index
+        self.empty_message = empty_message
         self._matches = []
 
         frame = ttk.Frame(self, padding=8)
@@ -151,7 +178,7 @@ class ItemPickerDialog(tk.Toplevel):
         self.listbox.delete(0, "end")
 
         if not self.item_index:
-            self.status_var.set("No item index found - run tools/build_item_index.py first.")
+            self.status_var.set(self.empty_message)
             self._matches = []
             return
 
@@ -189,13 +216,15 @@ class ItemPickerDialog(tk.Toplevel):
 class RecipeDialog(tk.Toplevel):
     """Modal add/edit form for one recipe entry."""
 
-    def __init__(self, parent, ages, categories, item_index, recipe=None):
+    def __init__(self, parent, ages, categories, item_index, fluid_index, recipe=None):
         super().__init__(parent)
         self.item_index = item_index
+        self.fluid_index = fluid_index
         self.title("Edit recipe" if recipe else "Add recipe")
         self.resizable(False, False)
         self.result = None
         self.input_rows = []
+        self.fluid_rows = []
 
         recipe = recipe or {}
         form = ttk.Frame(self, padding=10)
@@ -251,6 +280,24 @@ class RecipeDialog(tk.Toplevel):
         ttk.Button(form, text="+ Add input", command=lambda: self._add_input_row("", 1)).grid(row=row, column=1, sticky="w")
         row += 1
 
+        ttk.Label(form, text="Fluids (mB)").grid(row=row, column=0, sticky="nw", pady=(8, 0))
+        self.fluids_frame = ttk.Frame(form)
+        self.fluids_frame.grid(row=row, column=1, sticky="w", pady=(8, 0))
+        row += 1
+
+        for entry in recipe.get("fluids", []):
+            self._add_fluid_row(entry.get("fluid", ""), entry.get("amount", 1000))
+
+        ttk.Button(form, text="+ Add fluid", command=lambda: self._add_fluid_row("", 1000)).grid(row=row, column=1, sticky="w")
+        row += 1
+        ttk.Label(
+            form, foreground="#666", justify="left",
+            text="Crafting table: fluid comes from a filled container (bucket, jug, barrel) and\n"
+                 "uses one grid slot - the WHOLE content is used up, the amount is only a minimum.\n"
+                 "Fluid tags (#...) only work on the crafting table.",
+        ).grid(row=row, column=1, sticky="w")
+        row += 1
+
         button_row = ttk.Frame(form)
         button_row.grid(row=row, column=0, columnspan=2, pady=(12, 0))
         ttk.Button(button_row, text="OK", command=self._on_ok).grid(row=0, column=0, padx=4)
@@ -288,6 +335,30 @@ class RecipeDialog(tk.Toplevel):
         self.input_rows = [r for r in self.input_rows if r[0] is not row_frame]
         row_frame.destroy()
 
+    def _add_fluid_row(self, fluid, amount):
+        row_index = len(self.fluid_rows)
+        fluid_var = tk.StringVar(value=fluid)
+        amount_var = tk.StringVar(value=str(amount))
+        row_frame = ttk.Frame(self.fluids_frame)
+        row_frame.grid(row=row_index, column=0, sticky="w", pady=2)
+        ttk.Entry(row_frame, textvariable=fluid_var, width=32).grid(row=0, column=0, padx=(0, 4))
+        ttk.Button(row_frame, text="Search...", command=lambda: self._search_fluid(fluid_var)).grid(row=0, column=1, padx=(0, 4))
+        ttk.Spinbox(row_frame, textvariable=amount_var, from_=1, to=100000, increment=100, width=7).grid(row=0, column=2, padx=4)
+        ttk.Label(row_frame, text="mB").grid(row=0, column=3)
+        ttk.Button(row_frame, text="Remove", command=lambda: self._remove_fluid_row(row_frame)).grid(row=0, column=4, padx=4)
+        self.fluid_rows.append((row_frame, fluid_var, amount_var))
+
+    def _search_fluid(self, fluid_var):
+        dialog = ItemPickerDialog(self, self.fluid_index, title="Search fluids",
+                                  empty_message=f"No ProbeJS fluid dump found at {PROBEJS_GLOBALS}")
+        self.wait_window(dialog)
+        if dialog.result:
+            fluid_var.set(dialog.result)
+
+    def _remove_fluid_row(self, row_frame):
+        self.fluid_rows = [r for r in self.fluid_rows if r[0] is not row_frame]
+        row_frame.destroy()
+
     def _on_ok(self):
         age = self.age_var.get().strip()
         category = self.category_var.get().strip()
@@ -317,7 +388,31 @@ class RecipeDialog(tk.Toplevel):
             messagebox.showerror("Bad output", "Output must be a number.", parent=self)
             return
 
+        fluids = []
+        for _, fluid_var, amount_var in self.fluid_rows:
+            fluid = fluid_var.get().strip()
+            if not fluid:
+                continue
+            try:
+                amount = int(amount_var.get())
+            except ValueError:
+                amount = 0
+            if amount <= 0:
+                messagebox.showerror("Bad fluid amount", f'"{fluid}" needs a positive amount in mB.', parent=self)
+                return
+            if fluid.startswith("#") and machine != "crafting_table":
+                messagebox.showerror("Fluid tag", f'Fluid tags like "{fluid}" only work for crafting_table recipes.', parent=self)
+                return
+            fluids.append({"fluid": fluid, "amount": amount})
+        if machine == "crafting_table" and fluids:
+            slots = sum(i["count"] for i in inputs) + len(fluids)
+            if slots > 9:
+                messagebox.showerror("Too many ingredients", f"{slots} items + fluids don't fit a 3x3 crafting grid.", parent=self)
+                return
+
         recipe = {"age": age, "category": category, "machine": machine, "output": output, "inputs": inputs}
+        if fluids:
+            recipe["fluids"] = fluids
 
         if machine in GTCEU_MACHINES:
             tier = self.tier_var.get().strip()
@@ -363,6 +458,7 @@ class RecipeEditorApp(tk.Tk):
         self.ages, self.categories = load_progression()
         self.recipes = read_recipes()
         self.item_index = load_item_index()
+        self.fluid_index = load_fluid_index()
 
         columns = ("machine", "tier", "output", "inputs")
         self.tree = ttk.Treeview(self, columns=columns, show="tree headings")
@@ -433,6 +529,8 @@ class RecipeEditorApp(tk.Tk):
             for index in indices:
                 recipe = self.recipes[index]
                 inputs_summary = ", ".join(f'{i["count"]}x {i["item"]}' for i in recipe["inputs"])
+                if recipe.get("fluids"):
+                    inputs_summary += " + " + ", ".join(f'{f["amount"]} mB {f["fluid"]}' for f in recipe["fluids"])
                 self.tree.insert(cat_node, "end", iid=str(index), values=(
                     recipe["machine"], recipe.get("tier", ""), recipe.get("output", 1), inputs_summary,
                 ))
@@ -447,7 +545,7 @@ class RecipeEditorApp(tk.Tk):
         return int(selection[0])
 
     def _add(self):
-        dialog = RecipeDialog(self, self.ages, self.categories, self.item_index)
+        dialog = RecipeDialog(self, self.ages, self.categories, self.item_index, self.fluid_index)
         self.wait_window(dialog)
         if dialog.result:
             self.recipes.append(dialog.result)
@@ -457,7 +555,7 @@ class RecipeEditorApp(tk.Tk):
         index = self._selected_index()
         if index is None:
             return
-        dialog = RecipeDialog(self, self.ages, self.categories, self.item_index, recipe=self.recipes[index])
+        dialog = RecipeDialog(self, self.ages, self.categories, self.item_index, self.fluid_index, recipe=self.recipes[index])
         self.wait_window(dialog)
         if dialog.result:
             self.recipes[index] = dialog.result

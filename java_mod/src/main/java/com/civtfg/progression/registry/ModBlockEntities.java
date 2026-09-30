@@ -1,6 +1,7 @@
 package com.civtfg.progression.registry;
 
 import com.civtfg.progression.ProgressionMod;
+import com.civtfg.progression.blockentity.PrimitiveAssemblerBlockEntity;
 import com.civtfg.progression.blockentity.LaboratoryBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraftforge.registries.DeferredRegister;
@@ -21,4 +22,8 @@ public class ModBlockEntities {
                     ModBlocks.LABORATORY.get(), ModBlocks.INDUSTRIAL_LABORATORY.get(), ModBlocks.ELECTRIC_LABORATORY.get(),
                     ModBlocks.ADVANCED_LABORATORY.get(), ModBlocks.ELITE_LABORATORY.get()
             ).build(null));
+
+    public static final RegistryObject<BlockEntityType<PrimitiveAssemblerBlockEntity>> PRIMITIVE_ASSEMBLER =
+            BLOCK_ENTITIES.register("primitive_assembler", () -> BlockEntityType.Builder.of(
+                    PrimitiveAssemblerBlockEntity::new, ModBlocks.PRIMITIVE_ASSEMBLER.get()).build(null));
 }

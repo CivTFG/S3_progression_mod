@@ -5,6 +5,8 @@
   "block.s3_progression_mod.electric_laboratory": "Electric Laboratory",
   "block.s3_progression_mod.advanced_laboratory": "Advanced Laboratory",
   "block.s3_progression_mod.elite_laboratory": "Elite Laboratory",
+  "block.s3_progression_mod.primitive_assembler": "Primitive Assembler",
+  "gui.s3_progression_mod.primitive_assembler.empty": "Empty",
   "block.s3_progression_mod.laboratory.out_of_order": "This laboratory is out of order",
   "block.s3_progression_mod.laboratory.out_of_order.unclaimed": "This laboratory is out of order - the chunk isn't claimed by any team",
   "block.s3_progression_mod.laboratory.out_of_order.active_elsewhere": "This laboratory is out of order - the active laboratory is at %s, %s, %s",

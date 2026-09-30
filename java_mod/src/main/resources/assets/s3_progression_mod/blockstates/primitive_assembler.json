@@ -1,0 +1,12 @@
+{
+  "variants": {
+    "facing=north,working=false": { "model": "s3_progression_mod:block/primitive_assembler" },
+    "facing=east,working=false": { "model": "s3_progression_mod:block/primitive_assembler", "y": 90 },
+    "facing=south,working=false": { "model": "s3_progression_mod:block/primitive_assembler", "y": 180 },
+    "facing=west,working=false": { "model": "s3_progression_mod:block/primitive_assembler", "y": 270 },
+    "facing=north,working=true": { "model": "s3_progression_mod:block/primitive_assembler_active" },
+    "facing=east,working=true": { "model": "s3_progression_mod:block/primitive_assembler_active", "y": 90 },
+    "facing=south,working=true": { "model": "s3_progression_mod:block/primitive_assembler_active", "y": 180 },
+    "facing=west,working=true": { "model": "s3_progression_mod:block/primitive_assembler_active", "y": 270 }
+  }
+}
