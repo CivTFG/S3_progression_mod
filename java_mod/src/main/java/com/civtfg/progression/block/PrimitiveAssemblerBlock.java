@@ -2,12 +2,14 @@ package com.civtfg.progression.block;
 
 import com.civtfg.progression.blockentity.PrimitiveAssemblerBlockEntity;
 import com.civtfg.progression.registry.ModBlockEntities;
+import com.civtfg.progression.util.SealedBarrelFluids;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
@@ -90,7 +92,15 @@ public class PrimitiveAssemblerBlock extends BaseEntityBlock {
             // The client has no tank state of its own, so bucket handling has to be decided
             // server-side; the client just assumes success and waits for the result.
             if (!FluidUtil.interactWithFluidHandler(player, hand, assembler.getTank())) {
-                NetworkHooks.openScreen(serverPlayer, assembler, pos);
+                // TFC barrels with an active sealed recipe refuse the standard handler above
+                ItemStack emptied = SealedBarrelFluids.tryEmptyInto(player.getItemInHand(hand), assembler.getTank(), player);
+                if (emptied != null) {
+                    if (!player.getAbilities().instabuild) {
+                        player.setItemInHand(hand, emptied);
+                    }
+                } else {
+                    NetworkHooks.openScreen(serverPlayer, assembler, pos);
+                }
             }
         }
         return InteractionResult.sidedSuccess(level.isClientSide);

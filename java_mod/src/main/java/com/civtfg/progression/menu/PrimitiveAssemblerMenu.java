@@ -2,6 +2,7 @@ package com.civtfg.progression.menu;
 
 import com.civtfg.progression.blockentity.PrimitiveAssemblerBlockEntity;
 import com.civtfg.progression.registry.ModMenuTypes;
+import com.civtfg.progression.util.SealedBarrelFluids;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -109,6 +110,12 @@ public class PrimitiveAssemblerMenu extends AbstractContainerMenu {
         FluidActionResult result = FluidUtil.tryEmptyContainerAndStow(
                 carried, blockEntity.getTank(), playerInv, Integer.MAX_VALUE, player, true);
         if (!result.isSuccess()) {
+            // TFC barrels with an active sealed recipe refuse the standard handler above
+            ItemStack emptied = SealedBarrelFluids.tryEmptyInto(carried, blockEntity.getTank(), player);
+            if (emptied != null) {
+                setCarried(emptied);
+                return true;
+            }
             result = FluidUtil.tryFillContainerAndStow(
                     carried, blockEntity.getTank(), playerInv, Integer.MAX_VALUE, player, true);
         }
