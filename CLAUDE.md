@@ -104,21 +104,18 @@ README.md                        user-facing install/build instructions — keep
   (`ProgressionTiers.currentProgress(team)`, or "Everything (fully researched)" once every
   tier is done). Teams still in Bronze are deliberately omitted, not listed as "Bronze Age".
 - **`/progression set <team> <tier>`** (op-only, added in 0.7.0, replaced the old
-  `/progression status <tier>`): marks `<tier>` and every earlier tier as researched
-  (total raised to `threshold + 1` unless already higher) and zeroes every later tier, so it
-  raises and lowers alike; `NONE` wipes everything. Re-syncs stages of online members right
+  `/progression status <tier>` and `/progression reset <tier>`): sets `<tier>` and every
+  earlier tier's total to exactly `threshold + 1` (1025 with the current 1024 thresholds)
+  and every later tier's to 0, so it raises and lowers alike; `NONE` wipes everything. Re-syncs stages of online members right
   away (shared `syncStages`, same as the login handler), offline members on login. `<team>`
   is looked up by FTB Teams short name first (`TeamManager#getTeamByName`, what `/ftbteams`
   uses and what the suggestions list), then by visible display name, case-insensitive.
-- **Command permissions**: none of `/progression`'s subcommands had a `.requires(...)`
-  at all until this was actually checked - every one defaulted to Brigadier's level 0 (any
-  survival player). `teams` is read-only and stays open on purpose. **`set` and `reset` are
-  `.requires(src => src.hasPermission(2))` (op-only)** - `reset` zeroes a team's counter for
-  a tier *and* immediately strips that tier's GameStage from every online team member, with
-  no confirmation - any team member (not just the owner) being able to do that to the whole
-  team unprompted was a real grief vector, not just a "self-cheat". If you add another
-  command here that mutates team state (not just reads it), default to op-only and open it
-  up deliberately, rather than the other way around.
+- **Command permissions**: `/progression`'s subcommands originally had no `.requires(...)`
+  at all - every one defaulted to Brigadier's level 0 (any survival player), which made the
+  old `reset` (strip a tier from the whole team, no confirmation) a real grief vector.
+  **`set` is `.requires(src => src.hasPermission(2))` (op-only)**; `teams` is read-only and
+  stays open on purpose. If you add another command here that mutates team state (not just
+  reads it), default to op-only and open it up deliberately, rather than the other way around.
 - **Gates** (`progression.json`'s `"gates"` array, one gating (multi-)block per tier
   transition): seven mechanisms —
   - `interaction`: KubeJS `BlockEvents.rightClicked` cancels the interaction
