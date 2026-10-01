@@ -39,7 +39,11 @@ import java.util.Set;
 public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
     public static final int SLOT_COUNT = 5;
-    public static final int MAX_PROGRESS = 100;
+    /**
+     * Ticks one research craft takes: 20 minutes (20 * 60 * 20). Synced to the client through
+     * {@link ContainerData}, which sends values as shorts - keep this below 32767.
+     */
+    public static final int MAX_PROGRESS = 20 * 60 * 20;
 
     /**
      * What a tier's laboratory craft resolves to once its 5 slots are read: the tier
@@ -299,13 +303,15 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     // ----------------------------------------------------------------
-    // Save / load (items persist, progress intentionally does not)
+    // Save / load - progress persists too, a 20-minute craft must survive chunk unloads and
+    // the daily server restart (the matching tier/value is recomputed from the slots each tick)
     // ----------------------------------------------------------------
 
     @Override
     protected void saveAdditional(net.minecraft.nbt.CompoundTag tag) {
         super.saveAdditional(tag);
         tag.put("Inventory", itemHandler.serializeNBT());
+        tag.putInt("Progress", progress);
     }
 
     @Override
@@ -314,6 +320,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
         if (tag.contains("Inventory")) {
             itemHandler.deserializeNBT(tag.getCompound("Inventory"));
         }
+        progress = Math.min(tag.getInt("Progress"), MAX_PROGRESS);
     }
 
     // ----------------------------------------------------------------
