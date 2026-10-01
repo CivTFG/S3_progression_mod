@@ -53,7 +53,9 @@ CREATE_MACHINES = [
     "crushing", "milling", "mixing", "compacting", "pressing", "cutting",
     "splashing", "haunting", "deploying", "filling", "emptying", "item_application",
 ]
-MACHINES = ["crafting_table"] + GTCEU_MACHINES + CREATE_MACHINES
+# This mod's own unpowered assembler - max 9 input entries, max one fluid, 8000 mB tank.
+PRIMITIVE_ASSEMBLER = "primitive_assembler"
+MACHINES = ["crafting_table", PRIMITIVE_ASSEMBLER] + GTCEU_MACHINES + CREATE_MACHINES
 TIERS = ["ULV", "LV", "MV", "HV", "EV", "IV", "LUV", "ZPM", "UV", "UHV"]
 HEAT_LEVELS = ["", "heated", "superheated"]
 
@@ -257,7 +259,7 @@ class RecipeDialog(tk.Toplevel):
         ttk.Label(form, text="Tier (GTCEU machines only)").grid(row=row, column=0, sticky="w")
         ttk.Combobox(form, textvariable=self.tier_var, values=TIERS, width=20).grid(row=row, column=1, sticky="w")
         row += 1
-        ttk.Label(form, text="Duration in ticks (GTCEU/Create machines only)").grid(row=row, column=0, sticky="w")
+        ttk.Label(form, text="Duration in ticks (all machines except crafting_table)").grid(row=row, column=0, sticky="w")
         ttk.Spinbox(form, textvariable=self.duration_var, from_=1, to=100000, width=18).grid(row=row, column=1, sticky="w")
         row += 1
         ttk.Label(form, text="Heat (Create mixing/compacting only)").grid(row=row, column=0, sticky="w")
@@ -400,10 +402,13 @@ class RecipeDialog(tk.Toplevel):
             if amount <= 0:
                 messagebox.showerror("Bad fluid amount", f'"{fluid}" needs a positive amount in mB.', parent=self)
                 return
-            if fluid.startswith("#") and machine != "crafting_table":
-                messagebox.showerror("Fluid tag", f'Fluid tags like "{fluid}" only work for crafting_table recipes.', parent=self)
+            if fluid.startswith("#") and machine not in ("crafting_table", PRIMITIVE_ASSEMBLER):
+                messagebox.showerror("Fluid tag", f'Fluid tags like "{fluid}" only work for crafting_table and primitive_assembler recipes.', parent=self)
                 return
             fluids.append({"fluid": fluid, "amount": amount})
+        if machine == PRIMITIVE_ASSEMBLER and (len(inputs) > 9 or len(fluids) > 1):
+            messagebox.showerror("Too many ingredients", "The Primitive Assembler takes at most 9 input entries and 1 fluid.", parent=self)
+            return
         if machine == "crafting_table" and fluids:
             slots = sum(i["count"] for i in inputs) + len(fluids)
             if slots > 9:
@@ -426,6 +431,12 @@ class RecipeDialog(tk.Toplevel):
                 return
             recipe["tier"] = tier
             recipe["duration"] = duration
+        elif machine == PRIMITIVE_ASSEMBLER:
+            try:
+                recipe["duration"] = int(self.duration_var.get())
+            except ValueError:
+                messagebox.showerror("Bad duration", "Duration must be a number of ticks.", parent=self)
+                return
         elif machine in CREATE_MACHINES:
             try:
                 duration = int(self.duration_var.get())
