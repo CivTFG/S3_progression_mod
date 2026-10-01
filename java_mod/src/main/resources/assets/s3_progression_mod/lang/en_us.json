@@ -1,4 +1,5 @@
 {
+  "emi.category.s3_progression_mod.primitive_assembler": "Primitive Assembler",
   "itemGroup.s3_progression_mod.progression_tab": "S3 Progression",
   "block.s3_progression_mod.laboratory": "Primitive Laboratory",
   "block.s3_progression_mod.industrial_laboratory": "Industrial Laboratory",
