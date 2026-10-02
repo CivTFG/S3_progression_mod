@@ -328,6 +328,28 @@ the `science-recipes` branch, merged into 0.7.0) - the old "currently empty" sta
 first full wipe (Pitfall #2) no longer applies. The 5 Laboratory-block recipes
 (`laboratory.json`, `industrial_laboratory.json`, etc.) live separately as static JSON.
 
+### `tfg_tweaks.js` (pack recipe adjustments) - pack scripts are edited for it
+
+`kubejs_scripts/server_scripts/tfg_tweaks.js` (`// priority: -100`, loads after TFG) registers
+adjusted copies of pack recipes under their original ids: hose pulley (black steel plate instead
+of rubber foil), basic tape (rubber foil instead of paper), soaked paper via encased-fan smoking,
+reinforced hang glider (long steel rod), economy plane / biplane / scarlet biplane on engine
+phases. See the file header for details and assumptions.
+
+KubeJS 6's `event.remove`/`replaceInput`/`forEachRecipe` only see *original* (datapack) recipes,
+never ones another script added - so a recipe TFG creates in its own KubeJS scripts can't be
+removed from here, and re-adding it under the same id "works" (last one wins) but logs
+"Duplicate added recipe" on every reload, which the user didn't accept. Since 2026-10-02 those
+pack definitions are **commented out** (`/* CivTFG: replaced by .../tfg_tweaks.js ... */`) in
+the pack's `create/recipes.js`, `gregtech/recipes.js`, `hangglider/recipes.js` and
+`immersive_aircraft/recipes.js` (test instance, `s3_client/overrides`, `s3_server_13.10`).
+**A pack update overwrites those files - re-apply the four comment-outs**, otherwise the
+duplicate warnings and the unmodified originals come back.
+
+Related KubeJS 6 gotcha: `event.cancel()` throws `EventExit`, so nothing after it in a handler
+runs - send messages / resync inventories *before* cancelling (this silently swallowed the
+climate limiter messages and their inventory resync).
+
 ## Tools (`tools/`)
 
 - **`recipe_editor.py`**: `python tools/recipe_editor.py`. Tkinter GUI, tree view grouped
