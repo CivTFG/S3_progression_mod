@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "BBB",
+    "BGB",
+    "BBB"
+  ],
+  "key": {
+    "B": { "item": "gtceu:bismuth_bronze_ingot" },
+    "G": { "item": "gtceu:small_iron_gear" }
+  },
+  "result": {
+    "item": "s3_progression_mod:primitive_assembler",
+    "count": 1
+  }
+}

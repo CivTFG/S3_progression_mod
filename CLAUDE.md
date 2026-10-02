@@ -239,8 +239,9 @@ README.md                        user-facing install/build instructions — keep
   `inputs` max 9 entries (an entry is an ingredient, optionally wrapped as `ingredient` + `count`),
   Clicking the tank in the GUI with a fluid container on the cursor empties/fills it (`clickMenuButton`).
   `fluid_input` optional (`fluid` id or `tag`, plus `amount`), `duration` in ticks (default 100).
-  If several recipes match, the one with the most item inputs wins. No crafting recipe for the
-  machine itself exists yet, and it is not gated by `progression.json`.
+  If several recipes match, the one with the most item inputs wins. The machine itself is crafted
+  from 8 `gtceu:bismuth_bronze_ingot` around a `gtceu:small_iron_gear`
+  (`data/s3_progression_mod/recipes/primitive_assembler.json`); it is not gated by `progression.json`.
 
 ## Configuration
 
