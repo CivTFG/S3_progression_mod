@@ -19,13 +19,14 @@ public class LaboratoryScreen extends AbstractContainerScreen<LaboratoryMenu> {
     private static final ResourceLocation TEXTURE =
             new ResourceLocation(ProgressionMod.MOD_ID, "textures/gui/laboratory.png");
 
-    // Progress bar recess, directly under the 5 laboratory slots - must match the
-    // background texture's bar art and LaboratoryMenu's slot layout.
+    // Progress bar recess in the background art, directly under the 5 laboratory slots - the
+    // remaining-time countdown is drawn centred on it (a 20-minute craft made the bar itself
+    // too slow to read). Must match the texture and LaboratoryMenu's slot layout.
     private static final int PROGRESS_BAR_X = 45;
     private static final int PROGRESS_BAR_Y = 64;
     private static final int PROGRESS_BAR_WIDTH = 88;
     private static final int PROGRESS_BAR_HEIGHT = 6;
-    private static final int PROGRESS_BAR_COLOR = 0xFFFFFFFF;
+    private static final int COUNTDOWN_COLOR = 0xFFFFFF;
 
     public LaboratoryScreen(LaboratoryMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -51,13 +52,13 @@ public class LaboratoryScreen extends AbstractContainerScreen<LaboratoryMenu> {
         // (the 9-arg overload) fixes it. Confirmed via javap against the real GuiGraphics
         // class rather than assuming, same method as CLAUDE.md's other javap pitfalls.
         guiGraphics.blit(TEXTURE, x, y, 0.0F, 0.0F, imageWidth, imageHeight, imageWidth, imageHeight);
+    }
 
-        if (menu.getProgress() > 0) {
-            int filled = (int) ((float) menu.getProgress() / menu.getMaxProgress() * PROGRESS_BAR_WIDTH);
-            guiGraphics.fill(x + PROGRESS_BAR_X, y + PROGRESS_BAR_Y,
-                    x + PROGRESS_BAR_X + filled, y + PROGRESS_BAR_Y + PROGRESS_BAR_HEIGHT,
-                    PROGRESS_BAR_COLOR);
-        }
+    /** Remaining craft time as m:ss, rounded up to whole seconds (20 ticks each). */
+    private String countdownText() {
+        int remainingTicks = Math.max(0, menu.getMaxProgress() - menu.getProgress());
+        int seconds = (remainingTicks + 19) / 20;
+        return String.format("%d:%02d", seconds / 60, seconds % 60);
     }
 
     @Override
@@ -79,6 +80,12 @@ public class LaboratoryScreen extends AbstractContainerScreen<LaboratoryMenu> {
             if (tierThreshold >= 0) {
                 guiGraphics.drawString(font, "Progress: " + menu.getTierProgress() + " / " + tierThreshold, 8, 29, 0x404040, false);
             }
+        }
+
+        if (menu.getProgress() > 0) {
+            // vertically centred on the 6 px recess (font line height is 9)
+            guiGraphics.drawCenteredString(font, countdownText(), PROGRESS_BAR_X + PROGRESS_BAR_WIDTH / 2,
+                    PROGRESS_BAR_Y + (PROGRESS_BAR_HEIGHT - font.lineHeight) / 2 + 1, COUNTDOWN_COLOR);
         }
 
         guiGraphics.drawString(font, playerInventoryTitle, 8, imageHeight - 96 + 2, 0x404040, false);
