@@ -334,7 +334,8 @@ first full wipe (Pitfall #2) no longer applies. The 5 Laboratory-block recipes
 adjusted copies of pack recipes under their original ids: hose pulley (black steel plate instead
 of rubber foil), basic tape (rubber foil instead of paper), soaked paper via encased-fan smoking,
 reinforced hang glider (long steel rod), economy plane / biplane / scarlet biplane on engine
-phases. See the file header for details and assumptions.
+phases, airship (`steampowered:bronze_steam_engine`) / cargo airship (`tfg:lv_aircraft_engine`) /
+warship (`immersive_aircraft:nether_engine`). See the file header for details and assumptions.
 
 KubeJS 6's `event.remove`/`replaceInput`/`forEachRecipe` only see *original* (datapack) recipes,
 never ones another script added - so a recipe TFG creates in its own KubeJS scripts can't be

@@ -13,7 +13,8 @@
 //   create/recipes.js              hose pulley (shaped + assembler + material info)
 //   gregtech/recipes.js            basic tape from glue (shaped + assembler)
 //   hangglider/recipes.js          reinforced hang glider (2 shaped + 2 assembler)
-//   immersive_aircraft/recipes.js  economy plane, biplane, scarlet biplane
+//   immersive_aircraft/recipes.js  economy plane, biplane, scarlet biplane,
+//                                  airship, cargo airship (shaped + assembler), warship
 // event.remove below is only kept for real originals (GTCEU's own datapack recipe).
 //
 // Rhino rules (CLAUDE.md Pitfall #5/#20): no object-spread, `var` instead of const/let inside
@@ -190,4 +191,60 @@ ServerEvents.recipes(event => {
         H: 'tfc:metal/ingot/red_steel',
         I: 'tfg:basalt_fiber_plate'
     }).id('tfg:man_of_many_planes/mechanical_crafter/scarlet_biplane')
+
+    // ---- 2c. Airships on engine phases: airship (steam) -> cargo airship (LV) -> warship (MV) -
+    // Recipes otherwise unchanged from immersive_aircraft/recipes.js, only the engines differ.
+    // Airship: immersive_aircraft:engine -> steampowered:bronze_steam_engine
+    event.shaped('immersive_aircraft:airship', [
+        'ABA',
+        'CDE',
+        'FGA'
+    ], {
+        A: 'immersive_aircraft:sail',
+        B: 'tfg:airship_balloon',
+        C: 'steampowered:bronze_steam_engine',
+        D: '#create:seats',
+        E: 'firmaciv:rope_coil',
+        F: '#forge:rotors',
+        G: 'tfg:airship_hull'
+    }).id('tfg:immersive_aircraft/shaped/airship')
+
+    // Cargo airship: 2x immersive_aircraft:engine -> 2x tfg:lv_aircraft_engine (shaped + assembler)
+    event.shaped('immersive_aircraft:cargo_airship', [
+        'ABA',
+        'CDC',
+        'EFE'
+    ], {
+        A: '#forge:rotors',
+        B: '#forge:tools/hammers',
+        C: 'tfg:lv_aircraft_engine',
+        D: 'immersive_aircraft:airship',
+        E: 'gtceu:wood_crate',
+        F: '#forge:tools/screwdrivers'
+    }).id('tfg:immersive_aircraft/shaped/cargo_airship')
+
+    event.recipes.gtceu.assembler('tfg:immersive_aircraft/assembler/cargo_airship')
+        .itemInputs('immersive_aircraft:airship', '2x tfg:lv_aircraft_engine', '2x gtceu:wood_crate', '2x #forge:rotors')
+        .itemOutputs('immersive_aircraft:cargo_airship')
+        .duration(10 * 20)
+        .EUt(GTValues.VA[GTValues.LV])
+
+    // Warship: tfg:lv_aircraft_engine -> immersive_aircraft:nether_engine
+    event.recipes.create.mechanical_crafting('immersive_aircraft:warship', [
+        'ABCC ',
+        ' DDD ',
+        ' EEEF',
+        ' EGEH',
+        ' EEEF',
+        ' DDD '
+    ], {
+        A: 'tfg:redblu_steel_plated_airplane_propeller',
+        B: 'immersive_aircraft:nether_engine',
+        C: 'tfg:airship_balloon',
+        D: 'gtceu:wrought_iron_plate',
+        E: 'immersive_aircraft:hull',
+        F: 'gtceu:wrought_iron_rod',
+        G: 'immersive_aircraft:cargo_airship',
+        H: '#create:seats'
+    }).id('tfg:immersive_aircraft/mechanical_crafter/warship')
 })
