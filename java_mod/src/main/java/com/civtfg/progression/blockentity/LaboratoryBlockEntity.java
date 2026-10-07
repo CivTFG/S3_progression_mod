@@ -19,6 +19,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.MinecraftForge;
@@ -146,14 +147,25 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
     public static void serverTick(Level level, BlockPos pos, BlockState state, LaboratoryBlockEntity be) {
         boolean dirty = false;
 
-        // Only ACTIVE labs tick, so this lab is its team's functional one. Labs placed
-        // before 0.5.0 never recorded their position (legacy boolean flag), which made
-        // decorative copies report "active lab at 0, 0, 0" - re-record it once per load.
+        // Only ACTIVE labs tick. Once per load, reconcile with the team's record: no position
+        // recorded (pre-0.5.0 boolean flag, or the record was cleared) -> record this lab;
+        // the record names a DIFFERENT lab (a higher-tier lab replaced this one while its
+        // chunk was unloaded, or the claim changed hands) -> this lab goes out of order, so a
+        // team can never end up with two working labs.
         if (!be.labPositionChecked) {
             be.labPositionChecked = true;
             Team team = ProgressionTiers.resolveTeam(level, pos);
-            if (team != null && ProgressionTiers.getLaboratoryPos(team) == null) {
-                ProgressionTiers.setHasLaboratory(team, pos);
+            if (team != null) {
+                if (!ProgressionTiers.isLaboratoryAt(team, level, pos)
+                        && ProgressionTiers.getLaboratoryPos(team) != null) {
+                    level.setBlock(pos, state.setValue(LaboratoryBlock.ACTIVE, false), Block.UPDATE_ALL);
+                    return;
+                }
+                // no position yet, or a pre-0.8.0 record without dimension/tier: (re-)record it
+                if ((ProgressionTiers.getLaboratoryDimension(team) == null || ProgressionTiers.getLaboratoryTier(team) == null)
+                        && state.getBlock() instanceof LaboratoryBlock lab) {
+                    ProgressionTiers.setHasLaboratory(team, level, pos, lab.getTier());
+                }
             }
         }
 

@@ -77,12 +77,13 @@ public class LaboratoryBlock extends BaseEntityBlock {
     }
 
     /**
-     * Whether this particular lab is THE team's one functional Laboratory - only the
-     * first Laboratory (of ANY tier) placed in a team's claim gets ACTIVE=true (see
-     * {@link #getStateForPlacement} and {@link ProgressionTiers#hasLaboratory}); every
-     * other placement (unclaimed chunk, or a team that already has one of any tier) is an
-     * inert decorative copy: no GUI, no ticking, just an "out of order" message on
-     * right-click. A team gets exactly **one** active lab total, not one per tier - this
+     * Whether this particular lab is THE team's one functional Laboratory (see
+     * {@link #getStateForPlacement} and {@link ProgressionTiers#hasLaboratory}). A lab
+     * placed in a team's claim becomes ACTIVE if the team has no working lab or if it is a
+     * higher {@link LabTier} than the current one - which {@link #setPlacedBy} then switches
+     * to "out of order" (an upgrade; since 0.8.0). Every other placement (unclaimed chunk,
+     * same or lower tier) is an inert decorative copy: no GUI, no ticking, just an "out of
+     * order" message on right-click. A team gets exactly **one** active lab total, not one per tier - this
      * was briefly one-per-tier (see Pitfall #16), reverted per the user's explicit
      * correction (Pitfall #17). All variants share the same model/loot table structure per
      * variant, so a broken decorative lab still drops - and can be re-placed as - a normal
@@ -119,7 +120,13 @@ public class LaboratoryBlock extends BaseEntityBlock {
             return defaultBlockState();
         }
         Team team = ProgressionTiers.resolveTeam(level, context.getClickedPos());
-        boolean active = team != null && !ProgressionTiers.hasLaboratory(team);
+        if (team == null) {
+            return defaultBlockState().setValue(ACTIVE, false);
+        }
+        ActiveLab current = findActiveLab(team, level);
+        // Active if the team has no working lab (none recorded, or the recorded one is gone)
+        // or this one is a higher tier - setPlacedBy then deactivates the old one.
+        boolean active = current == null || current.tier().ordinal() < tier.ordinal();
         return defaultBlockState().setValue(ACTIVE, active);
     }
 
@@ -129,9 +136,45 @@ public class LaboratoryBlock extends BaseEntityBlock {
         if (!level.isClientSide() && state.getValue(ACTIVE)) {
             Team team = ProgressionTiers.resolveTeam(level, pos);
             if (team != null) {
-                ProgressionTiers.setHasLaboratory(team, pos);
+                // Side effects only here, not in getStateForPlacement (that one also runs
+                // for placements that end up failing).
+                ActiveLab previous = findActiveLab(team, level);
+                if (previous != null && !(previous.level() == level && previous.pos().equals(pos))) {
+                    previous.level().setBlock(previous.pos(), previous.state().setValue(ACTIVE, false), Block.UPDATE_ALL);
+                    if (placer instanceof Player player) {
+                        player.displayClientMessage(Component.translatable(
+                                "block.s3_progression_mod.laboratory.replaced",
+                                previous.state().getBlock().getName(),
+                                previous.pos().getX(), previous.pos().getY(), previous.pos().getZ()), false);
+                    }
+                }
+                ProgressionTiers.setHasLaboratory(team, level, pos, tier);
             }
         }
+    }
+
+    /** The team's recorded functional lab, as found in the world. */
+    private record ActiveLab(Level level, BlockPos pos, BlockState state, LabTier tier) {
+    }
+
+    /**
+     * @return {@code team}'s recorded functional Laboratory, or {@code null} if there is none
+     * or the record is stale (no ACTIVE lab at the recorded position anymore - unclaimed
+     * before it was broken, rollback, ...) or has no position (pre-0.5.0 boolean record).
+     * Server-side only; loads the recorded chunk if needed (only on placement/right-click).
+     */
+    @Nullable
+    private static ActiveLab findActiveLab(Team team, Level level) {
+        BlockPos pos = ProgressionTiers.getLaboratoryPos(team);
+        Level labLevel = pos == null ? null : ProgressionTiers.getLaboratoryLevel(team, level);
+        if (labLevel == null) {
+            return null;
+        }
+        BlockState state = labLevel.getBlockState(pos);
+        if (state.getBlock() instanceof LaboratoryBlock lab && state.getValue(ACTIVE)) {
+            return new ActiveLab(labLevel, pos, state, lab.getTier());
+        }
+        return null;
     }
 
     @Override
@@ -189,16 +232,19 @@ public class LaboratoryBlock extends BaseEntityBlock {
         if (team == null) {
             return Component.translatable("block.s3_progression_mod.laboratory.out_of_order.unclaimed");
         }
-        BlockPos activePos = ProgressionTiers.getLaboratoryPos(team);
-        if (activePos != null) {
-            return Component.translatable("block.s3_progression_mod.laboratory.out_of_order.active_elsewhere",
-                    activePos.getX(), activePos.getY(), activePos.getZ());
+        ActiveLab active = findActiveLab(team, level);
+        if (active == null) {
+            // The recorded active lab is gone (or was never recorded) - placing this one
+            // again makes it the active one (see getStateForPlacement).
+            return Component.translatable("block.s3_progression_mod.laboratory.out_of_order.none_active");
         }
-        // Shouldn't normally happen (this block is only ever ACTIVE=false because
-        // hasLaboratory(team) was already true at placement time), but the active lab
-        // could have been destroyed since without this decorative one being replaced -
-        // fall back to a generic message rather than a broken-looking one with no reason.
-        return Component.translatable("block.s3_progression_mod.laboratory.out_of_order");
+        BlockPos activePos = active.pos();
+        if (active.level() != level) {
+            return Component.translatable("block.s3_progression_mod.laboratory.out_of_order.active_elsewhere_dimension",
+                    activePos.getX(), activePos.getY(), activePos.getZ(), active.level().dimension().location().toString());
+        }
+        return Component.translatable("block.s3_progression_mod.laboratory.out_of_order.active_elsewhere",
+                activePos.getX(), activePos.getY(), activePos.getZ());
     }
 
     @Override
@@ -207,13 +253,13 @@ public class LaboratoryBlock extends BaseEntityBlock {
             if (level.getBlockEntity(pos) instanceof LaboratoryBlockEntity laboratory) {
                 laboratory.dropContents(level, pos);
             }
-            // The team's one functional lab was just destroyed - clear the flag so the
+            // The team's one functional lab was just destroyed - clear the record so the
             // next lab they place (any tier, anywhere in their claim) can become the
-            // functional one again, rather than every future placement being permanently
-            // "out of order".
+            // functional one again. Only if the record points at THIS lab, so removing some
+            // other lab never wipes a valid record.
             if (!level.isClientSide() && state.getValue(ACTIVE)) {
                 Team team = ProgressionTiers.resolveTeam(level, pos);
-                if (team != null) {
+                if (team != null && ProgressionTiers.isLaboratoryAt(team, level, pos)) {
                     ProgressionTiers.clearHasLaboratory(team);
                 }
             }

@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "s3_progression_mod:laboratory",
+    "s3_progression_mod:industrial_laboratory",
+    "s3_progression_mod:electric_laboratory",
+    "s3_progression_mod:advanced_laboratory",
+    "s3_progression_mod:elite_laboratory",
+    "s3_progression_mod:primitive_assembler"
+  ]
+}

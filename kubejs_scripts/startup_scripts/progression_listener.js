@@ -1,12 +1,13 @@
 // Listens for the custom Forge event fired by LaboratoryBlockEntity#craft, attributes
 // the crafted value to the FTB Team that claims the chunk the laboratory sits in, and
-// unlocks a tier's game stage once that tier's running total passes its threshold.
+// unlocks a tier's game stage once that tier's running total reaches the team's threshold
+// (team-size dependent, see ProgressionTiers.thresholdFor).
 //
 // Tiers must be unlocked in order (Bronze -> Iron -> Steel -> Steam -> LV -> HV -> EV ->
 // IV) - but that ordering is enforced in Java (LaboratoryBlockEntity refuses to
 // even start progressing an out-of-order recipe), so by the time this event fires the
 // craft has already been confirmed as in-order. This script only needs to track each
-// tier's own counter/threshold/stage.
+// tier's own counter and stage.
 //
 // ForgeEvents is only bound in startup scripts, not server_scripts, so this must stay
 // here - but the callback itself only fires later during real gameplay, so calling the
@@ -61,34 +62,26 @@ ForgeEvents.onEvent('com.civtfg.progression.event.ProgressionEvent', event => {
 
     console.info(`[s3_progression_mod] Team ${team.getId()} ${tier} research total: ${total} (+${value})`)
 
-    if (total > tierConfig.threshold) {
-        team.getOnlineMembers().forEach(player => {
-            if (!player.stages.has(tierConfig.stageId)) {
-                player.stages.add(tierConfig.stageId)
-                player.tell(`Your team's research has unlocked the ${tier} tier!`)
-            }
-        })
+    // The threshold depends on the team's counted size (ProgressionTiers.thresholdFor), and
+    // the threshold-th point unlocks (total >= threshold). tryUnlock stores the unlock flag
+    // and returns true only on the craft that unlocks it, so stages/broadcast happen once.
+    // A threshold that dropped below the total (a member left) is picked up here, i.e. on
+    // the team's next craft - by design.
+    const ProgressionTiers = Java.loadClass('com.civtfg.progression.stage.ProgressionTiers')
+    if (!ProgressionTiers.tryUnlock(team, tier)) return
 
-        // Only announce once, on the exact craft that pushes the total past the
-        // threshold - "total > threshold" alone stays true on every later craft too
-        // (the team keeps crafting this tier's items - see Pitfall #13 for why that's
-        // now blocked, but this listener still fires for the crafts that got in before
-        // that fix took effect on a given world), which would otherwise spam the
-        // broadcast every time.
-        if (previousTotal <= tierConfig.threshold) {
-            // var, not const - see Pitfall #20 in CLAUDE.md: a const/let declared
-            // directly inside a bare if/for/while block (not a real function scope)
-            // makes Rhino double-declare the name and throw "redeclaration of var" -
-            // this crashed the server the first time a tier threshold was crossed.
-            var Component = Java.loadClass('net.minecraft.network.chat.Component')
-            var ServerLifecycleHooks = Java.loadClass('net.minecraftforge.server.ServerLifecycleHooks')
-            // team.getName() returns a Component (FTB Teams renders team names as
-            // clickable/colored components, e.g. a gray "/ftbteams info <team>" link) -
-            // interpolating it directly into a template literal calls its toString(),
-            // which prints the raw component data dump instead of the visible name.
-            // .getString() extracts just the plain visible text.
-            var message = Component.literal(`${team.getName().getString()} just researched ${tierConfig.displayName}!`)
-            ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers().forEach(p => p.sendSystemMessage(message))
+    team.getOnlineMembers().forEach(player => {
+        if (!player.stages.has(tierConfig.stageId)) {
+            player.stages.add(tierConfig.stageId)
+            player.tell(`Your team's research has unlocked the ${tier} tier!`)
         }
-    }
+    })
+
+    // team.getName() returns a Component (FTB Teams renders team names as clickable/colored
+    // components) - .getString() extracts the plain visible text (Pitfall #24). Not inside a
+    // bare if-block, so const is fine here (Pitfall #20).
+    const ChatComponent = Java.loadClass('net.minecraft.network.chat.Component')
+    const ServerLifecycleHooks = Java.loadClass('net.minecraftforge.server.ServerLifecycleHooks')
+    const message = ChatComponent.literal(`${team.getName().getString()} just researched ${tierConfig.displayName}!`)
+    ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers().forEach(p => p.sendSystemMessage(message))
 })

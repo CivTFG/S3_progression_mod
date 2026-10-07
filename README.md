@@ -15,11 +15,14 @@ reach the next one (e.g. completing Bronze unlocks the bloomery needed to make I
   progress forever (the GUI shows a warning if so). Comes in five variants - Primitive,
   Industrial, Electric, Advanced, and Elite Laboratory - each researching a cumulative,
   growing range of ages (Industrial can research everything Primitive can, plus its own new
-  pair; and so on up to Elite, which researches every age). A team can have one active
-  laboratory *per variant* at a time (see `CLAUDE.md` for exactly how that's tracked), so
-  placing a second one of the same variant while the first is still active just gets you a
-  non-functional decorative copy.
-- **Tiers unlock in order** - each tier has a research threshold; crossing it grants
+  pair; and so on up to Elite, which researches every age). A team has one active
+  laboratory in total (see `CLAUDE.md` for exactly how that's tracked): placing a
+  higher-tier one takes over and switches the old one off, placing one of the same or a
+  lower tier just gets you a non-functional decorative copy.
+- **Tiers unlock in order** - each tier needs a team-size dependent number of research
+  points (512 for 1-2 players, +128 per further player, max 3200 at 23; a player leaving
+  lowers it by one step per midnight at most; a team with an active laboratory also gets
+  1 free point every 20 minutes of server uptime, +1 per 10 players); reaching it grants
   every online team member a GameStage (e.g. `bronze_unlocked`), and a login-sync keeps
   offline members caught up. A team can't start progressing tier N+1 until tier N is
   unlocked.
@@ -34,7 +37,7 @@ reach the next one (e.g. completing Bronze unlocks the bloomery needed to make I
   once (e.g. every LV machine) by checking each right-clicked block's own GTCEU tier
   directly, instead of listing individual block ids - see `CLAUDE.md` for how.
 - **Single source of truth** - `config/s3_progression_mod/progression.json` defines tier
-  order, thresholds, gamestage ids, and the gated-machine list. Both the Java mod and
+  order, the team-size threshold formula, gamestage ids, and the gated-machine list. Both the Java mod and
   every KubeJS script read this one file at runtime; rebalancing tiers/thresholds/gates
   needs no code changes on either side.
 - **Science-item recipes** - `kubejs_scripts/server_scripts/science_recipes.js` turns a

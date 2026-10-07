@@ -1,6 +1,7 @@
 package com.civtfg.progression.stage;
 
 import com.civtfg.progression.block.LaboratoryBlock;
+import com.civtfg.progression.registry.ModScienceItems;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSyntaxException;
@@ -10,8 +11,11 @@ import dev.ftb.mods.ftblibrary.math.ChunkDimPos;
 import dev.ftb.mods.ftbteams.api.Team;
 import net.darkhax.gamestages.GameStageHelper;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.fml.loading.FMLPaths;
@@ -21,6 +25,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 
 /**
  * Ordered list of progression tiers/gamestages granted by KubeJS as each tier's
@@ -48,7 +53,26 @@ import java.nio.file.Path;
  */
 public final class ProgressionTiers {
 
-    public record Tier(String key, String displayName, String stageId, int threshold) {
+    /** A research tier - its unlock threshold is NOT per tier but per team, see {@link #thresholdFor}. */
+    public record Tier(String key, String displayName, String stageId) {
+    }
+
+    /**
+     * progression.json's "teamSize" block: every tier needs {@code baseThreshold} points for
+     * up to {@code freePlayers} counted members, plus {@code pointsPerPlayer} for each counted
+     * member beyond that, counting at most {@code maxPlayers} members. Members offline for
+     * {@code inactiveAfterDays} days or more don't count (0 = off) - see {@link PlayerActivity}.
+     */
+    public record TeamSize(int baseThreshold, int pointsPerPlayer, int freePlayers, int maxPlayers, int inactiveAfterDays) {
+    }
+
+    /**
+     * progression.json's "passiveResearch" block: every {@code intervalMinutes} of server
+     * uptime, each team with an active Laboratory gets {@code points} research points, plus one
+     * more per full {@code playersPerExtraPoint} counted members (0 = no extra points) - see
+     * {@link #passivePointsFor}, {@link #awardPassiveResearch} and {@link PassiveResearch}.
+     */
+    public record PassiveResearchConfig(int intervalMinutes, int points, int playersPerExtraPoint) {
     }
 
     /** The tier a team is actively accumulating research toward, and how far along it is. */
@@ -67,17 +91,43 @@ public final class ProgressionTiers {
                        String[] exceptBlocks, String message) {
     }
 
-    private record Config(String researchKey, String[] categories, Tier[] tiers, Gate[] gates) {
+    private record Config(String researchKey, String[] categories, Tier[] tiers, Gate[] gates, TeamSize teamSize,
+                          PassiveResearchConfig passiveResearch) {
     }
+
+    /** Used when progression.json has no "passiveResearch" block: 1 point every 20 minutes, +1 per 10 players. */
+    private static final PassiveResearchConfig DEFAULT_PASSIVE_RESEARCH = new PassiveResearchConfig(20, 1, 10);
+
+    /** Used when progression.json has no "teamSize" block: 512 for 1-2 players, +128 each, up to 23 players (3200). */
+    private static final TeamSize DEFAULT_TEAM_SIZE = new TeamSize(512, 128, 2, 23, 14);
+
+    /** Per-tier "unlocked" flags (compound of tier key -> boolean) on the team - unlocks are permanent. */
+    private static final String UNLOCKED_KEY = "s3_progression_mod:unlocked";
+
+    /**
+     * Team size used for the threshold: rises immediately with the member count, falls by at
+     * most one per real-time midnight (server clock) - see {@link #countedSize} and
+     * {@link TeamSizeTracker}. {@link #COUNTED_SIZE_DAY_KEY} is the epoch day it was last
+     * brought up to date, so missed midnights (server offline) are caught up.
+     */
+    private static final String COUNTED_SIZE_KEY = "s3_progression_mod:counted_size";
+    private static final String COUNTED_SIZE_DAY_KEY = "s3_progression_mod:counted_size_day";
+
+    /**
+     * The fixed threshold of 0.7.x: a team that has no {@link #UNLOCKED_KEY} flags yet gets
+     * them derived once from its research totals with the old rule (total > 1024).
+     */
+    private static final int LEGACY_THRESHOLD = 1024;
 
     /** Same NBT key KubeJS writes the per-tier research compound under on the team. */
     public static final String RESEARCH_KEY;
 
     /**
      * NBT key marking that a team already has a functional Laboratory - of ANY tier -
-     * placed somewhere in their claim, and exactly where (a compound with "x"/"y"/"z" ints,
-     * not a boolean - so a decorative "out of order" copy can tell the player where the
-     * real one is, not just that one exists). See {@link LaboratoryBlock}'s "out of order"
+     * placed somewhere in their claim, and exactly where (a compound with "x"/"y"/"z" ints
+     * and, since 0.8.0, a "dim" dimension id - not a boolean - so a decorative "out of
+     * order" copy can tell the player where the real one is, and a newly placed higher-tier
+     * lab can find and deactivate it). See {@link LaboratoryBlock}'s "out of order"
      * decorative-copy mechanic, which reads/writes this via {@link #hasLaboratory}/
      * {@link #getLaboratoryPos} and {@link #setHasLaboratory}/{@link #clearHasLaboratory}
      * to allow only the first Laboratory placed per team to be functional, regardless of
@@ -90,8 +140,12 @@ public final class ProgressionTiers {
     /** Science item category suffixes, e.g. "mining" - must match ModScienceItems.Category names lowercased. */
     public static final String[] CATEGORIES;
 
-    /** Order matters: index N requires index N-1's threshold to already be crossed. */
+    /** Order matters: index N requires index N-1 to already be unlocked. */
     public static final Tier[] TIERS;
+
+    public static final TeamSize TEAM_SIZE;
+
+    public static final PassiveResearchConfig PASSIVE_RESEARCH;
 
     /** One gating (multi-)block/item per age transition - see {@link Gate}. */
     public static final Gate[] GATES;
@@ -111,6 +165,8 @@ public final class ProgressionTiers {
             CATEGORIES = config.categories();
             TIERS = config.tiers();
             GATES = config.gates() != null ? config.gates() : new Gate[0];
+            TEAM_SIZE = config.teamSize() != null ? config.teamSize() : DEFAULT_TEAM_SIZE;
+            PASSIVE_RESEARCH = config.passiveResearch() != null ? config.passiveResearch() : DEFAULT_PASSIVE_RESEARCH;
         } catch (IOException | JsonSyntaxException e) {
             throw new IllegalStateException(
                     "Failed to load " + path + " - this file is the single source of truth for progression "
@@ -159,16 +215,116 @@ public final class ProgressionTiers {
     }
 
     /**
-     * @return whether {@code team} has already crossed {@code tierKey}'s own threshold
-     * (i.e. that tier is fully unlocked), or {@code false} for an unknown tier key.
+     * @return whether {@code team} has unlocked {@code tierKey}, or {@code false} for an
+     * unknown tier key. Unlocks are stored flags, not derived from the research total: the
+     * threshold depends on the team size and can rise later, an unlocked tier stays unlocked.
      */
     public static boolean isUnlocked(Team team, String tierKey) {
-        Tier tier = find(tierKey);
-        if (tier == null) {
+        return find(tierKey) != null && unlockedFlags(team).getBoolean(tierKey);
+    }
+
+    /** Sets or clears {@code team}'s unlock flag for {@code tierKey} (stages are synced separately). */
+    public static void setUnlocked(Team team, String tierKey, boolean unlocked) {
+        CompoundTag flags = unlockedFlags(team);
+        flags.putBoolean(tierKey, unlocked);
+        team.getExtraData().put(UNLOCKED_KEY, flags);
+        team.markDirty();
+    }
+
+    /**
+     * Unlocks {@code tierKey} if {@code team}'s research total has reached its current
+     * threshold (the threshold-th point unlocks it, not the one after) - called after a
+     * Laboratory craft added points (progression_listener.js), so a threshold that dropped
+     * below the total (a member left) only takes effect on the team's next craft.
+     *
+     * @return {@code true} only if the tier was unlocked by this call
+     */
+    public static boolean tryUnlock(Team team, String tierKey) {
+        if (find(tierKey) == null || isUnlocked(team, tierKey)) {
             return false;
         }
-        CompoundTag research = team.getExtraData().getCompound(RESEARCH_KEY);
-        return research.getInt(tierKey) > tier.threshold();
+        if (team.getExtraData().getCompound(RESEARCH_KEY).getInt(tierKey) < thresholdFor(team)) {
+            return false;
+        }
+        setUnlocked(team, tierKey, true);
+        return true;
+    }
+
+    /**
+     * The team's unlock flags, created on first access from the research totals with the
+     * 0.7.x rule ({@link #LEGACY_THRESHOLD}) so existing teams keep what they have.
+     */
+    private static CompoundTag unlockedFlags(Team team) {
+        CompoundTag data = team.getExtraData();
+        if (data.contains(UNLOCKED_KEY, Tag.TAG_COMPOUND)) {
+            return data.getCompound(UNLOCKED_KEY);
+        }
+        CompoundTag research = data.getCompound(RESEARCH_KEY);
+        CompoundTag flags = new CompoundTag();
+        for (Tier tier : TIERS) {
+            flags.putBoolean(tier.key(), research.getInt(tier.key()) > LEGACY_THRESHOLD);
+        }
+        data.put(UNLOCKED_KEY, flags);
+        team.markDirty();
+        return flags;
+    }
+
+    /**
+     * @return the points {@code team} needs for its next tier: {@code baseThreshold} for up
+     * to {@code freePlayers} counted members, {@code pointsPerPlayer} more per member beyond
+     * that, at most {@code maxPlayers} counted (512..3200 with the default config).
+     */
+    public static int thresholdFor(Team team) {
+        int counted = Math.min(countedSize(team), TEAM_SIZE.maxPlayers());
+        return TEAM_SIZE.baseThreshold() + TEAM_SIZE.pointsPerPlayer() * Math.max(0, counted - TEAM_SIZE.freePlayers());
+    }
+
+    /** @return the number of ACTIVE FTB Teams members (owner, officers, members - not allies or invites; inactive ones see PlayerActivity). */
+    public static int memberCount(Team team) {
+        int active = 0;
+        for (java.util.UUID member : team.getMembers()) {
+            if (PlayerActivity.isActive(member)) {
+                active++;
+            }
+        }
+        return active;
+    }
+
+    /**
+     * @return the team size the threshold is based on - raised to the current member count
+     * immediately (stored, so a member who joins and leaves again before midnight still
+     * counts until then); lowered only by {@link #applyMidnightDecrease}.
+     */
+    public static int countedSize(Team team) {
+        CompoundTag data = team.getExtraData();
+        int members = memberCount(team);
+        if (!data.contains(COUNTED_SIZE_KEY, Tag.TAG_INT) || data.getInt(COUNTED_SIZE_KEY) < members) {
+            data.putInt(COUNTED_SIZE_KEY, members);
+            if (!data.contains(COUNTED_SIZE_DAY_KEY, Tag.TAG_LONG)) {
+                data.putLong(COUNTED_SIZE_DAY_KEY, LocalDate.now().toEpochDay());
+            }
+            team.markDirty();
+        }
+        return data.getInt(COUNTED_SIZE_KEY);
+    }
+
+    /**
+     * Lowers {@code team}'s counted size by one per real-time midnight (server clock) passed
+     * since it was last brought up to date - several at once after the server was offline -
+     * but never below the current member count. Called by {@link TeamSizeTracker}.
+     */
+    public static void applyMidnightDecrease(Team team, long today) {
+        int counted = countedSize(team);
+        CompoundTag data = team.getExtraData();
+        long day = data.getLong(COUNTED_SIZE_DAY_KEY);
+        if (day >= today) {
+            return;
+        }
+        long midnightsPassed = today - day;
+        // countedSize() above already raised it to at least the member count
+        data.putInt(COUNTED_SIZE_KEY, (int) Math.max(memberCount(team), counted - midnightsPassed));
+        data.putLong(COUNTED_SIZE_DAY_KEY, today);
+        team.markDirty();
     }
 
     /**
@@ -232,12 +388,69 @@ public final class ProgressionTiers {
         return new BlockPos(tag.getInt("x"), tag.getInt("y"), tag.getInt("z"));
     }
 
-    /** Marks that {@code team}'s functional Laboratory is at {@code pos} - see {@link #hasLaboratory}. */
-    public static void setHasLaboratory(Team team, BlockPos pos) {
+    /**
+     * @return the dimension id (e.g. "minecraft:overworld") of {@code team}'s functional
+     * Laboratory, or {@code null} if unknown - records written before 0.8.0 stored only
+     * x/y/z (read those as "same dimension as whoever asks", see {@link #getLaboratoryLevel}).
+     */
+    @Nullable
+    public static String getLaboratoryDimension(Team team) {
+        if (!team.getExtraData().contains(HAS_LABORATORY_KEY, Tag.TAG_COMPOUND)) {
+            return null;
+        }
+        CompoundTag tag = team.getExtraData().getCompound(HAS_LABORATORY_KEY);
+        return tag.contains("dim", Tag.TAG_STRING) ? tag.getString("dim") : null;
+    }
+
+    /**
+     * @return the server level {@code team}'s functional Laboratory is in - {@code level}
+     * itself for records without a dimension, {@code null} if the recorded dimension doesn't
+     * exist (anymore) or this isn't a server level. Server-side only.
+     */
+    @Nullable
+    public static Level getLaboratoryLevel(Team team, Level level) {
+        String dim = getLaboratoryDimension(team);
+        if (dim == null) {
+            return level;
+        }
+        ResourceLocation id = ResourceLocation.tryParse(dim);
+        if (id == null || level.getServer() == null) {
+            return null;
+        }
+        return level.getServer().getLevel(ResourceKey.create(Registries.DIMENSION, id));
+    }
+
+    /** @return whether {@code team}'s recorded functional Laboratory is exactly the one at {@code pos} in {@code level}. */
+    public static boolean isLaboratoryAt(Team team, Level level, BlockPos pos) {
+        return pos.equals(getLaboratoryPos(team)) && getLaboratoryLevel(team, level) == level;
+    }
+
+    /**
+     * @return the {@link LaboratoryBlock.LabTier} of {@code team}'s functional Laboratory, or
+     * {@code null} if unknown (no record, or a record written before 0.8.0 - filled in the
+     * first time that lab ticks, see LaboratoryBlockEntity#serverTick).
+     */
+    @Nullable
+    public static LaboratoryBlock.LabTier getLaboratoryTier(Team team) {
+        if (!team.getExtraData().contains(HAS_LABORATORY_KEY, Tag.TAG_COMPOUND)) {
+            return null;
+        }
+        CompoundTag tag = team.getExtraData().getCompound(HAS_LABORATORY_KEY);
+        try {
+            return tag.contains("tier", Tag.TAG_STRING) ? LaboratoryBlock.LabTier.valueOf(tag.getString("tier")) : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /** Marks that {@code team}'s functional Laboratory, of tier {@code labTier}, is at {@code pos} in {@code level} - see {@link #hasLaboratory}. */
+    public static void setHasLaboratory(Team team, Level level, BlockPos pos, LaboratoryBlock.LabTier labTier) {
         CompoundTag tag = new CompoundTag();
         tag.putInt("x", pos.getX());
         tag.putInt("y", pos.getY());
         tag.putInt("z", pos.getZ());
+        tag.putString("dim", level.dimension().location().toString());
+        tag.putString("tier", labTier.name());
         team.getExtraData().put(HAS_LABORATORY_KEY, tag);
         team.markDirty();
     }
@@ -246,6 +459,49 @@ public final class ProgressionTiers {
     public static void clearHasLaboratory(Team team) {
         team.getExtraData().remove(HAS_LABORATORY_KEY);
         team.markDirty();
+    }
+
+    /**
+     * @return the free research points {@code team} gets per interval: {@code points} plus one per
+     * full {@code playersPerExtraPoint} of its counted size (capped at {@code maxPlayers}, the same
+     * size the threshold uses) - 1 / 2 / 3 points for 1-9 / 10-19 / 20-23 players by default.
+     */
+    public static int passivePointsFor(Team team) {
+        int perExtra = PASSIVE_RESEARCH.playersPerExtraPoint();
+        int counted = Math.min(countedSize(team), TEAM_SIZE.maxPlayers());
+        return PASSIVE_RESEARCH.points() + (perExtra > 0 ? counted / perExtra : 0);
+    }
+
+    /**
+     * Adds {@link #passivePointsFor} points to {@code team}'s current research tier if the team
+     * has an active Laboratory that can research that tier (by its recorded
+     * {@link LaboratoryBlock.LabTier}). Never unlocks the tier itself - reaching the threshold this
+     * way unlocks on the team's next Laboratory craft, with the usual messages (user's choice).
+     *
+     * @return the points added, 0 if none
+     */
+    public static int awardPassiveResearch(Team team) {
+        LaboratoryBlock.LabTier labTier = getLaboratoryTier(team);
+        Progress progress = labTier != null ? currentProgress(team) : null;
+        if (progress == null) {
+            return 0;
+        }
+        ModScienceItems.Age age;
+        try {
+            age = ModScienceItems.Age.valueOf(progress.tierKey());
+        } catch (IllegalArgumentException e) {
+            return 0;
+        }
+        if (!labTier.allows(age)) {
+            return 0;
+        }
+        int points = passivePointsFor(team);
+        CompoundTag data = team.getExtraData();
+        CompoundTag research = data.getCompound(RESEARCH_KEY);
+        research.putInt(progress.tierKey(), research.getInt(progress.tierKey()) + points);
+        data.put(RESEARCH_KEY, research);
+        team.markDirty();
+        return points;
     }
 
     /**
@@ -258,7 +514,7 @@ public final class ProgressionTiers {
         CompoundTag research = team.getExtraData().getCompound(RESEARCH_KEY);
         for (Tier tier : TIERS) {
             if (!isUnlocked(team, tier.key())) {
-                return new Progress(tier.key(), tier.displayName(), research.getInt(tier.key()), tier.threshold());
+                return new Progress(tier.key(), tier.displayName(), research.getInt(tier.key()), thresholdFor(team));
             }
         }
         return null;

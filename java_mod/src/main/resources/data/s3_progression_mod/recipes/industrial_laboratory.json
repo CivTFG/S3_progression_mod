@@ -2,13 +2,14 @@
   "type": "minecraft:crafting_shaped",
   "pattern": [
     "WGW",
-    "WMW",
+    "STS",
     "WWW"
   ],
   "key": {
     "W": { "item": "gtceu:wrought_iron_plate" },
     "G": { "item": "minecraft:glass_pane" },
-    "M": { "item": "create:precision_mechanism" }
+    "S": { "item": "gtceu:small_brass_gear" },
+    "T": { "item": "gtceu:glass_tube" }
   },
   "result": {
     "item": "s3_progression_mod:industrial_laboratory",

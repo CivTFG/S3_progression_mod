@@ -6,7 +6,7 @@
     "TTT"
   ],
   "key": {
-    "T": { "item": "gtceu:tungsten_steel_plate" },
+    "T": { "item": "gtceu:titanium_plate" },
     "C": { "item": "ae2:certus_quartz_crystal" },
     "E": { "tag": "gtceu:circuits/ev" }
   },

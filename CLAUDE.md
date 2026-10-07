@@ -67,6 +67,10 @@ tools/
   build_item_index.py            builds tools/item_index.json (search index for the GUI)
   dump_gated_machines.js         one-off KubeJS script: /progression_dump_machines lists every
                                  block the voltage gates match (not shipped, see Configuration)
+  dump_stack_sizes.js            one-off KubeJS script: /progression_dump_stacks writes the real
+                                 (TFC runtime) stack size of every science-recipe ingredient and
+                                 the 9-slot check per machine recipe to kubejs/exported/
+                                 s3_stack_sizes.json (not shipped)
   item_index.json                generated, gitignored — regenerate, don't hand-edit
   PROBEJS_REFERENCE.md           (German) notes on ProbeJS's dump format, for reuse
 README.md                        user-facing install/build instructions — keep in sync
@@ -79,7 +83,40 @@ README.md                        user-facing install/build instructions — keep
   running research total (so 5 distinct items is worth far more than crafting 5 times with
   1 each). Progress resets if slot contents change mid-craft. On success, fires
   `ProgressionEvent` (a Forge event) which `progression_listener.js` picks up to credit the
-  team and grant the GameStage once the tier's threshold is crossed.
+  team and grant the GameStage once the tier's threshold is reached.
+- **Team-size dependent threshold** (since 0.8.0, `ProgressionTiers.thresholdFor(team)`): every
+  tier needs `baseThreshold` (512) points for up to `freePlayers` (2) counted members, plus
+  `pointsPerPlayer` (128) per counted member beyond that, at most `maxPlayers` (23) counted -
+  512..3200, all four numbers in progression.json's `"teamSize"` block (defaults built in if
+  it's missing). The **threshold-th point unlocks** (`total >= threshold`; until 0.7.x it was
+  `total > threshold`). Counted size (`countedSize`, team NBT `s3_progression_mod:counted_size`
+  + `_day`): members = FTB `Team#getMembers()` (rank >= MEMBER: owner/officers/members, not
+  allies/invites) that are **active** (`PlayerActivity`: our own last-seen log in world saved
+  data `s3_progression_mod_player_activity`, updated on login/logout and every minute while
+  online; offline for `teamSize.inactiveAfterDays` (14) days or more = inactive, counts like a
+  player who left; first 0.8.0 start imports `last_seen.time` from FTB Essentials'
+  `world/ftbessentials/playerdata/*.snbt`, every other member starts then; logging in counts
+  immediately again). It rises to the active member count immediately (lazily on every read, plus an
+  FTB `TeamEvent.PLAYER_JOINED_PARTY` listener), and falls by at most one per real-time
+  midnight on the server clock (`TeamSizeTracker`, checks `LocalDate.now()` once a minute;
+  missed midnights while offline are caught up), never below the member count - 7 members
+  leaving takes 7 days to settle. **Unlocks are stored flags** (`s3_progression_mod:unlocked`,
+  `isUnlocked`/`setUnlocked`/`tryUnlock`), not derived from the totals, so a tier stays
+  unlocked when the threshold later rises; a team without flags gets them derived once from
+  its totals with the 0.7.x rule (total > 1024). A threshold that drops below a team's total
+  (member left) only unlocks on the team's next Laboratory craft (user's choice) -
+  `progression_listener.js` calls `tryUnlock` after adding the points.
+- **Passive research** (since 0.8.0, `stage/PassiveResearch`): every `intervalMinutes` (20) of
+  server uptime - wall clock while running, offline time doesn't count, a partial interval is
+  lost on restart - every team with an active Laboratory gets `points` (1) plus one per full
+  `playersPerExtraPoint` (10) of its counted size, capped at `maxPlayers` (so 1/2/3 points for
+  1-9/10-19/20-23 players; `ProgressionTiers.passivePointsFor`) on its current
+  tier (`ProgressionTiers.awardPassiveResearch`), but only if that lab's `LabTier` allows the
+  tier (Steel phase with only a Primitive lab = nothing). The lab tier comes from the team's
+  lab record (`"tier"` field, since 0.8.0 - no chunk loading; older records get it the first
+  time their lab ticks). Silent, and never unlocks by itself: reaching the threshold this way
+  unlocks on the next Laboratory craft with the usual messages (user's choice). Config:
+  progression.json `"passiveResearch"` (defaults built in).
 - **Team resolution**: `ProgressionTiers.resolveTeam(level, pos)` maps a block position to
   an FTB Team via FTBChunks' claim data. **Server-side only** — see Pitfall #4. Team
   research/flags are stored in `team.getExtraData()` NBT (a CompoundTag), the same pattern
@@ -87,33 +124,43 @@ README.md                        user-facing install/build instructions — keep
 - **Tier gating**: GameStages (net.darkhax.gamestages) grants a stage per unlocked tier.
   Since GameStages is per-player, "team" progression is implemented by mirroring the same
   stage onto every online team member (with a login-sync for offline members) — see
-  `progression_listener.js` / `progression_commands.js`. The exact craft that pushes a
-  tier's total past its threshold also triggers a **global** chat broadcast to every online
-  player ("`<team name>` just researched `<tier>`!"), not just the team's own members -
-  guarded by `previousTotal <= tierConfig.threshold` so it fires exactly once per
-  tier-unlock, not on every later craft of that same tier's items (which would otherwise
-  spam it, since `total > threshold` alone stays true forever after). Uses
+  `progression_listener.js` / `progression_commands.js`. The craft that unlocks a tier also
+  triggers a **global** chat broadcast to every online player ("`<team name>` just
+  researched `<tier>`!"), not just the team's own members - exactly once, because
+  `ProgressionTiers.tryUnlock` only returns true on the call that sets the flag. Uses
   `net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer()` directly (reflected
   in via `Java.loadClass`, same pattern as everywhere else) rather than any KubeJS "global
   server" binding, since this script lives in `startup_scripts` and its callback fires
   later at runtime - deliberately not assuming which bindings are available in that
   context without checking.
 - **`/progression teams`** (in `progression_commands.js`) lists every FTB Team whose
-  current tier isn't Bronze - i.e. has crossed at least one tier's threshold
-  (`ProgressionTiers.isUnlocked(team, 'BRONZE')`) - with its current tier
-  (`ProgressionTiers.currentProgress(team)`, or "Everything (fully researched)" once every
+  current tier isn't Bronze - i.e. has unlocked at least one tier
+  (`ProgressionTiers.isUnlocked(team, 'BRONZE')`) - with its current tier, points / threshold
+  and counted team size plus inactive members (`ProgressionTiers.currentProgress(team)`/
+  `countedSize`, `PlayerActivity.inactiveCount`, or "Everything (fully researched)" once every
   tier is done). Teams still in Bronze are deliberately omitted, not listed as "Bronze Age".
+- **`/progression members <team>`** (op-only - shows other players' online times): members,
+  active and counted size, threshold, then one line per member: online / last seen (server time
+  zone) / INACTIVE (`PlayerActivity.describeMembers`).
 - **`/progression set <team> <tier>`** (op-only, added in 0.7.0, replaced the old
   `/progression status <tier>` and `/progression reset <tier>`): sets `<tier>` and every
-  earlier tier's total to exactly `threshold + 1` (1025 with the current 1024 thresholds)
-  and every later tier's to 0, so it raises and lowers alike; `NONE` wipes everything. Re-syncs stages of online members right
+  earlier tier's unlock flag and total (= the team's current `thresholdFor`) and clears every
+  later tier's (flag off, total 0), so it raises and lowers alike; `NONE` wipes everything. Re-syncs stages of online members right
   away (shared `syncStages`, same as the login handler), offline members on login. `<team>`
   is looked up by FTB Teams short name first (`TeamManager#getTeamByName`, what `/ftbteams`
   uses and what the suggestions list), then by visible display name, case-insensitive.
+- **`/progression clearlab <team>`** (op-only, script-only, added for 0.7.5 servers): deletes
+  the team's `has_laboratory` record. Before 0.8.0 that record had no dimension and was only
+  cleared when the active lab was removed from a chunk the SAME team still claimed, so it
+  went stale after unclaiming first, rollbacks, WorldEdit. Since 0.8.0 placement detects a
+  stale record by itself (see the Laboratory section), so this is only a manual escape hatch.
+  Decorative labs placed meanwhile stay out of order; they must be broken and re-placed.
+  The team argument is `GREEDY_STRING` (last argument; '#' in party short names works
+  unquoted, trailing console whitespace is trimmed by `findTeam`).
 - **Command permissions**: `/progression`'s subcommands originally had no `.requires(...)`
   at all - every one defaulted to Brigadier's level 0 (any survival player), which made the
   old `reset` (strip a tier from the whole team, no confirmation) a real grief vector.
-  **`set` is `.requires(src => src.hasPermission(2))` (op-only)**; `teams` is read-only and
+  **`set` and `clearlab` are `.requires(src => src.hasPermission(2))` (op-only)**; `teams` is read-only and
   stays open on purpose. If you add another command here that mutates team state (not just
   reads it), default to op-only and open it up deliberately, rather than the other way around.
 - **Gates** (`progression.json`'s `"gates"` array, one gating (multi-)block per tier
@@ -153,15 +200,30 @@ README.md                        user-facing install/build instructions — keep
     of `possession` and was split out into its own mechanism so it can be applied without
     also stripping inventories. Only covers `ResultSlot`s (crafting table and similar) -
     items produced in a GTCEU/Create machine's output slot aren't caught by this.
-- **Laboratory active/decorative split**: only the *first* Laboratory placed in a team's
-  claim is functional; every other one (unclaimed chunk, or a team that already has one) is
-  a decorative "out of order" copy — same block, `ACTIVE` blockstate property. See Pitfall
-  #4 for the exact bug this produced and how it's fixed now. Right-clicking a decorative
-  copy names the actual reason (`LaboratoryBlock#outOfOrderMessage`): "chunk isn't claimed
-  by any team" if `resolveTeam` returns null, or the exact position of the real active
-  Laboratory (`ProgressionTiers.getLaboratoryPos(team)`) otherwise - the has-laboratory NBT
-  went from a plain boolean to a compound storing `x`/`y`/`z` to make that position
-  available (see `ProgressionTiers.setHasLaboratory`/`clearHasLaboratory`).
+- **Laboratory active/decorative split**: a team has exactly one functional Laboratory;
+  every other one is a decorative "out of order" copy — same block, `ACTIVE` blockstate
+  property. See Pitfall #4 for the client-side crash this once produced. Since 0.8.0
+  (`LaboratoryBlock#getStateForPlacement`/`setPlacedBy`) a lab placed in a team's claim
+  becomes ACTIVE if the team has no working lab - none recorded, or the recorded position
+  no longer holds an ACTIVE lab (stale record: self-heals) - **or if it is a higher
+  `LabTier` than the current one**, which is then switched to `ACTIVE=false` (an upgrade;
+  the placer gets a chat message naming the old lab; the old lab keeps its slot contents
+  until broken). Same or lower tier, or an unclaimed chunk -> decorative. The team record
+  (`has_laboratory` NBT on the team, `ProgressionTiers.setHasLaboratory/getLaboratoryPos/
+  getLaboratoryLevel/isLaboratoryAt/clearHasLaboratory`) is a compound of `x`/`y`/`z` plus
+  (since 0.8.0) `dim`; older records without `dim` are read as "same dimension as the
+  caller" and upgraded the first time their lab ticks. `LaboratoryBlockEntity#serverTick`
+  reconciles once per load: an ACTIVE lab whose team record names a different lab demotes
+  itself (e.g. it was replaced while its chunk was unloaded), so two working labs can't
+  coexist. `onRemove` only clears the record if it points at the removed lab. Right-clicking
+  a decorative copy names the reason (`outOfOrderMessage`): unclaimed chunk; the active lab's
+  position (plus dimension if it's in another one); or "no active lab anymore - break and
+  re-place this one". Upgrading reads the old lab's block, so it may load that chunk.
+- **Breaking labs and the Primitive Assembler**: hardness 2.0 like wood, no
+  `requiresCorrectToolForDrops` - breakable by hand, faster with a GregTech wrench via
+  `data/forge/tags/blocks/mineable/wrench.json` (the tag GTCEu's wrench mines; the assembler
+  was in `minecraft:mineable/pickaxe` before, that tag file is gone). Until 0.8.0 the labs had `requiresCorrectToolForDrops` but were
+  in NO mineable tag, so no tool counted as correct and they never dropped anything.
 - **Five cumulative Laboratory variants** (`laboratory` aka "Primitive Laboratory" - kept
   its original registry name for save compatibility - `industrial_laboratory`,
   `electric_laboratory`, `advanced_laboratory`, `elite_laboratory`): five separate
@@ -252,8 +314,10 @@ one file at runtime; edit it, not hardcoded copies)
 {
   "researchKey": "s3_progression_mod:research",     // NBT key on team extra data
   "categories": ["mining", "farming", "production", "exploration", "challenge"],
+  "teamSize": { "baseThreshold": 512, "pointsPerPlayer": 128, "freePlayers": 2, "maxPlayers": 23, "inactiveAfterDays": 14 },
+  "passiveResearch": { "intervalMinutes": 20, "points": 1, "playersPerExtraPoint": 10 },
   "tiers": [
-    { "key": "BRONZE", "displayName": "Bronze Age", "stageId": "bronze_unlocked", "threshold": 3 },
+    { "key": "BRONZE", "displayName": "Bronze Age", "stageId": "bronze_unlocked" },  // no per-tier threshold since 0.8.0, see "teamSize"
     // ... IRON, STEEL, STEAM, LV, MV, HV, MOON, EV, MARS — MARS is the last tier now, IV
     // was removed as a research tier entirely (Pitfall #16); MV was removed once (Pitfall
     // #8) and reintroduced later once real gating blocks existed for it (Pitfall #14);
@@ -323,9 +387,19 @@ inputs - plain ids only there. **Gotcha, confirmed via javap on TFC 3.2.25**: TF
 container, so a crafting-table fluid recipe uses up the container's whole content - the
 `amount` is only a minimum.
 
-As of 0.7.0 the array holds ~510 recipes for all 10 ages (designed in a separate session on
-the `science-recipes` branch, merged into 0.7.0) - the old "currently empty" state after the
-first full wipe (Pitfall #2) no longer applies. The 5 Laboratory-block recipes
+Since 0.8.0 the file is **generated** by `Civ TFG\science item recipes\_build3\gen_js.py` (separate
+local repo; design notes/value table in `_build3/report.md`): 110 recipes, per tier the EMPTY
+token recipe plus 2 per category, valued 1:5:25:50:100 (mining:farming:exploration:production:
+challenge). Edit the design there and regenerate rather than hand-editing, or the next build
+overwrites it. The generated file adds a `SCIENCE_TAGS` block (`// ===TAGS-JSON-START/END===`,
+strict JSON) registered via `ServerEvents.tags('item', ...)` as `s3_progression_mod:science/*`
+item tags (cheeses, sandwiches, fish, ...); recipes reference them as `"item": "#tag"`, which the
+generator passes through for every machine type. Machine recipes (Primitive Assembler, GTCEU)
+have 9 item slots holding one stack each, and stack sizes in this pack are TFC's runtime values -
+GT gears stack to 4, double plates/long rods/springs/logs to 16, most food to 32. `_build3/build.py`
+checks this itself (`stack_sizes.json`, copied from an in-game `/progression_dump_stacks`, see
+`tools/dump_stack_sizes.js`) and scales each machine recipe down until it fits; re-run the dump and
+copy it over if new items enter the design (unknown items are assumed to stack to 16). The 5 Laboratory-block recipes
 (`laboratory.json`, `industrial_laboratory.json`, etc.) live separately as static JSON.
 
 ### `tfg_tweaks.js` (pack recipe adjustments) - pack scripts are edited for it

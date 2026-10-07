@@ -1,7 +1,8 @@
 // Keeps each player's tier game stages in sync with their FTB Team's per-tier research
 // totals (so progress made - or a /progression set - while a member was offline still applies once
 // they log back in), and provides the /progression commands (op-only "set" for a team's
-// tier, "teams" to list every team's current tier).
+// tier, "clearlab" for a stale active-lab record and "members" for a team's activity; "teams"
+// lists every team's current tier).
 
 const FTBTeamsAPI = Java.loadClass('dev.ftb.mods.ftbteams.api.FTBTeamsAPI')
 
@@ -10,15 +11,13 @@ const FTBTeamsAPI = Java.loadClass('dev.ftb.mods.ftbteams.api.FTBTeamsAPI')
 // config_files/s3_progression_mod/progression.json in the repo.
 //
 // KubeJS's own class filter denies java.nio/java.io entirely (scripts can't read files
-// directly), so the raw bytes come from ProgressionTiers.rawJson() (our own mod class,
+// directly), so the raw bytes come from S3ProgressionTiers.rawJson() (our own mod class,
 // unrestricted) instead - this script still does its own JSON.parse of that text.
-const PROGRESSION = loadProgressionConfig()
+// prefixed: KubeJS server scripts share one global scope
+const S3ProgressionTiers = Java.loadClass('com.civtfg.progression.stage.ProgressionTiers')
+const S3PlayerActivity = Java.loadClass('com.civtfg.progression.stage.PlayerActivity')
+const PROGRESSION = JSON.parse(String(S3ProgressionTiers.rawJson()))
 const RESEARCH_KEY = PROGRESSION.researchKey
-
-function loadProgressionConfig() {
-    const ProgressionTiers = Java.loadClass('com.civtfg.progression.stage.ProgressionTiers')
-    return JSON.parse(String(ProgressionTiers.rawJson()))
-}
 
 function getPlayerTeam(player) {
     return FTBTeamsAPI.api().getManager().getTeamForPlayer(player).orElse(null)
@@ -28,6 +27,8 @@ function getPlayerTeam(player) {
 // player's name for a solo player's team); falls back to the visible display name,
 // case-insensitive, so the name shown by /progression teams works too.
 function findTeam(name) {
+    // Tolerates surrounding quotes and whitespace (console input, copied suggestions).
+    name = String(name).trim().replace(/^"(.*)"$/, '$1').trim()
     const manager = FTBTeamsAPI.api().getManager()
     const byShortName = manager.getTeamByName(name).orElse(null)
     if (byShortName) return byShortName
@@ -39,10 +40,12 @@ function findTeam(name) {
     return found
 }
 
-// Grants/strips every tier stage on one player to match the team's research totals.
-function syncStages(player, research) {
+// Grants/strips every tier stage on one player to match the team's stored unlocks
+// (S3ProgressionTiers.isUnlocked - permanent flags, not derived from the research totals,
+// since the threshold depends on the team size).
+function syncStages(player, team) {
     PROGRESSION.tiers.forEach(tierConfig => {
-        const unlocked = research.getInt(tierConfig.key) > tierConfig.threshold
+        const unlocked = S3ProgressionTiers.isUnlocked(team, tierConfig.key)
         if (unlocked && !player.stages.has(tierConfig.stageId)) {
             player.stages.add(tierConfig.stageId)
         } else if (!unlocked && player.stages.has(tierConfig.stageId)) {
@@ -56,7 +59,7 @@ PlayerEvents.loggedIn(event => {
     const team = getPlayerTeam(player)
     if (!team) return
 
-    syncStages(player, team.getExtraData().getCompound(RESEARCH_KEY))
+    syncStages(player, team)
 })
 
 ServerEvents.commandRegistry(event => {
@@ -83,15 +86,21 @@ ServerEvents.commandRegistry(event => {
         return builder.buildFuture()
     }
 
+    // For a team argument that is the LAST argument (GREEDY_STRING takes the rest of the
+    // line, '#' included), so the short names are suggested without quotes.
+    function suggestTeamsGreedy(ctx, builder) {
+        FTBTeamsAPI.api().getManager().getTeams().forEach(team => builder.suggest(String(team.getShortName())))
+        return builder.buildFuture()
+    }
+
     event.register(
         Commands.literal('progression')
             .then(Commands.literal('set')
                 // Op-only (level 2). "/progression set <team> <tier>" marks <tier> and every
                 // tier before it as researched and wipes every tier after it (research
                 // total 0, stage removed) - so it works both for raising and lowering a
-                // team. NONE wipes everything. Every tier's total is set to exactly
-                // threshold + 1 (the lowest "unlocked" value, see ProgressionTiers.isUnlocked -
-                // 1025 with the current 1024 thresholds) or 0.
+                // team. NONE wipes everything. Unlocked tiers get the team's current threshold
+                // as total (S3ProgressionTiers.thresholdFor, team-size dependent), the others 0.
                 .requires(src => src.hasPermission(2))
                 .then(Commands.argument('team', Arguments.STRING.create(event))
                     .suggests(suggestTeams)
@@ -118,13 +127,15 @@ ServerEvents.commandRegistry(event => {
 
                             const data = team.getExtraData()
                             const research = data.getCompound(RESEARCH_KEY)
+                            const threshold = S3ProgressionTiers.thresholdFor(team)
                             PROGRESSION.tiers.forEach((tierConfig, i) => {
-                                research.putInt(tierConfig.key, i <= targetIndex ? tierConfig.threshold + 1 : 0)
+                                research.putInt(tierConfig.key, i <= targetIndex ? threshold : 0)
+                                S3ProgressionTiers.setUnlocked(team, tierConfig.key, i <= targetIndex)
                             })
                             data.put(RESEARCH_KEY, research)
                             team.markDirty()
 
-                            team.getOnlineMembers().forEach(member => syncStages(member, research))
+                            team.getOnlineMembers().forEach(member => syncStages(member, team))
 
                             const name = team.getName().getString()
                             const summary = targetIndex === -1
@@ -139,6 +150,57 @@ ServerEvents.commandRegistry(event => {
                     )
                 )
             )
+            .then(Commands.literal('clearlab')
+                // Op-only. Deletes a team's "has an active Laboratory" record when it points at
+                // a lab that no longer exists (it is only cleared when the active lab is removed
+                // from a chunk the same team still claims, and it stores no dimension). Labs
+                // placed while the record existed stay out of order - break and re-place them.
+                .requires(src => src.hasPermission(2))
+                // GREEDY_STRING: "Deserters#1a2b" works unquoted (STRING stops at '#').
+                .then(Commands.argument('team', Arguments.GREEDY_STRING.create(event))
+                    .suggests(suggestTeamsGreedy)
+                    .executes(ctx => {
+                        const teamName = Arguments.GREEDY_STRING.getResult(ctx, 'team')
+                        const team = findTeam(teamName)
+                        if (!team) {
+                            ctx.source.sendFailure(Component.red(`Unknown team: '${teamName}'`))
+                            return 0
+                        }
+                        const name = team.getName().getString()
+                        if (!S3ProgressionTiers.hasLaboratory(team)) {
+                            ctx.source.sendSystemMessage(Component.yellow(`${name} has no active laboratory recorded`))
+                            return 0
+                        }
+                        const pos = S3ProgressionTiers.getLaboratoryPos(team)
+                        const where = pos ? `${pos.getX()}, ${pos.getY()}, ${pos.getZ()}` : 'unknown position'
+                        S3ProgressionTiers.clearHasLaboratory(team)
+                        ctx.source.sendSystemMessage(Component.green(`${name}: active laboratory record (${where}) cleared. Break and re-place their laboratory to make it active.`))
+                        return 1
+                    })
+                )
+            )
+            .then(Commands.literal('members')
+                // Op-only (shows other players' online times): every member of a team with
+                // online / last seen and whether they count as inactive (see PlayerActivity).
+                .requires(src => src.hasPermission(2))
+                .then(Commands.argument('team', Arguments.GREEDY_STRING.create(event))
+                    .suggests(suggestTeamsGreedy)
+                    .executes(ctx => {
+                        const teamName = Arguments.GREEDY_STRING.getResult(ctx, 'team')
+                        const team = findTeam(teamName)
+                        if (!team) {
+                            ctx.source.sendFailure(Component.red(`Unknown team: '${teamName}'`))
+                            return 0
+                        }
+                        const counted = S3ProgressionTiers.countedSize(team)
+                        const active = S3ProgressionTiers.memberCount(team)
+                        ctx.source.sendSystemMessage(Component.gold(
+                            `${team.getName().getString()}: ${team.getMembers().size()} members, ${active} active, ${counted} counted for the threshold (${S3ProgressionTiers.thresholdFor(team)} points)`))
+                        S3PlayerActivity.describeMembers(team).forEach(line => ctx.source.sendSystemMessage(Component.literal(`  ${line}`)))
+                        return 1
+                    })
+                )
+            )
             .then(Commands.literal('teams')
                 .executes(ctx => {
                     const sender = ctx.source.entity
@@ -149,18 +211,22 @@ ServerEvents.commandRegistry(event => {
 
                     // "isUnlocked(team, 'BRONZE')" is exactly "has completed at least one
                     // tier" - Bronze is the implicit starting tier nobody needs to research
-                    // into (see ProgressionTiers.getCurrentTierName's javadoc), so a team
+                    // into (see S3ProgressionTiers.getCurrentTierName's javadoc), so a team
                     // that hasn't crossed Bronze's own threshold yet hasn't finished
                     // anything - deliberately left out of this list.
-                    const ProgressionTiers = Java.loadClass('com.civtfg.progression.stage.ProgressionTiers')
                     const teams = FTBTeamsAPI.api().getManager().getTeams()
                     let count = 0
                     teams.forEach(team => {
-                        if (!ProgressionTiers.isUnlocked(team, 'BRONZE')) {
+                        if (!S3ProgressionTiers.isUnlocked(team, 'BRONZE')) {
                             return
                         }
-                        const progress = ProgressionTiers.currentProgress(team)
-                        const currentTierName = progress ? progress.displayName() : 'Everything (fully researched)'
+                        const progress = S3ProgressionTiers.currentProgress(team)
+                        const counted = S3ProgressionTiers.countedSize(team)
+                        const inactive = S3PlayerActivity.inactiveCount(team)
+                        const inactiveText = inactive > 0 ? `, ${inactive} inactive` : ''
+                        const currentTierName = progress
+                            ? `${progress.displayName()} (${progress.current()} / ${progress.threshold()} points, ${counted} players counted${inactiveText})`
+                            : 'Everything (fully researched)'
                         // team.getName() is a Component (FTB Teams renders it as a
                         // clickable/colored link), not a plain string - .getString()
                         // extracts the visible text, same fix as progression_listener.js's
