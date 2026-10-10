@@ -20,6 +20,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.fml.loading.FMLPaths;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -58,21 +61,31 @@ public final class ProgressionTiers {
     }
 
     /**
-     * progression.json's "teamSize" block: every tier needs {@code baseThreshold} points for
-     * up to {@code freePlayers} counted members, plus {@code pointsPerPlayer} for each counted
-     * member beyond that, counting at most {@code maxPlayers} members. Members offline for
-     * {@code inactiveAfterDays} days or more don't count (0 = off) - see {@link PlayerActivity}.
+     * progression.json's "teamSize" block: every tier needs
+     * {@code round(baseThreshold + curveFactor * (c - 1)^curveExponent)} points, {@code c} being
+     * the counted team size (1..{@code maxPlayers}) - 512 / 672 / 1024 / 1522 / 2400 / 2646 for
+     * 1 / 2 / 5 / 10 / 20 / 23 players by default. Members offline for {@code inactiveAfterDays}
+     * days or more don't count (0 = off) - see {@link PlayerActivity}.
      */
-    public record TeamSize(int baseThreshold, int pointsPerPlayer, int freePlayers, int maxPlayers, int inactiveAfterDays) {
+    public record TeamSize(int baseThreshold, double curveFactor, double curveExponent, int maxPlayers, int inactiveAfterDays) {
+    }
+
+    /**
+     * progression.json's "labCraft" block: one Laboratory craft takes {@code referenceMinutes}
+     * for a team whose threshold is {@code referenceThreshold}, and proportionally less for a
+     * higher threshold (40 min x 512 / T) - so every team size needs about the same time per
+     * tier. See {@link #labCraftTicks}.
+     */
+    public record LabCraftConfig(int referenceMinutes, int referenceThreshold) {
     }
 
     /**
      * progression.json's "passiveResearch" block: every {@code intervalMinutes} of server
-     * uptime, each team with an active Laboratory gets {@code points} research points, plus one
-     * more per full {@code playersPerExtraPoint} counted members (0 = no extra points) - see
+     * uptime, each team with an active Laboratory gets {@code T / referenceThreshold} research
+     * points (T = its threshold), the fraction carried over per team - see
      * {@link #passivePointsFor}, {@link #awardPassiveResearch} and {@link PassiveResearch}.
      */
-    public record PassiveResearchConfig(int intervalMinutes, int points, int playersPerExtraPoint) {
+    public record PassiveResearchConfig(int intervalMinutes, int referenceThreshold) {
     }
 
     /** The tier a team is actively accumulating research toward, and how far along it is. */
@@ -92,14 +105,22 @@ public final class ProgressionTiers {
     }
 
     private record Config(String researchKey, String[] categories, Tier[] tiers, Gate[] gates, TeamSize teamSize,
-                          PassiveResearchConfig passiveResearch) {
+                          LabCraftConfig labCraft, PassiveResearchConfig passiveResearch) {
     }
 
-    /** Used when progression.json has no "passiveResearch" block: 1 point every 20 minutes, +1 per 10 players. */
-    private static final PassiveResearchConfig DEFAULT_PASSIVE_RESEARCH = new PassiveResearchConfig(20, 1, 10);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ProgressionTiers.class);
 
-    /** Used when progression.json has no "teamSize" block: 512 for 1-2 players, +128 each, up to 23 players (3200). */
-    private static final TeamSize DEFAULT_TEAM_SIZE = new TeamSize(512, 128, 2, 23, 14);
+    /** Used when progression.json has no (valid) "passiveResearch" block: T / 512 points every 40 minutes. */
+    private static final PassiveResearchConfig DEFAULT_PASSIVE_RESEARCH = new PassiveResearchConfig(40, 512);
+
+    /** Used when progression.json has no (valid) "labCraft" block: 40 minutes at a threshold of 512. */
+    private static final LabCraftConfig DEFAULT_LAB_CRAFT = new LabCraftConfig(40, 512);
+
+    /** Used when progression.json has no "teamSize" block: 512 + 160.3 x (c - 1)^0.8375, up to 23 players (2646). */
+    private static final TeamSize DEFAULT_TEAM_SIZE = new TeamSize(512, 160.3, 0.8375, 23, 14);
+
+    /** Fraction of a free research point carried over to the next interval (double) on the team. */
+    private static final String PASSIVE_FRACTION_KEY = "s3_progression_mod:passive_fraction";
 
     /** Per-tier "unlocked" flags (compound of tier key -> boolean) on the team - unlocks are permanent. */
     private static final String UNLOCKED_KEY = "s3_progression_mod:unlocked";
@@ -145,6 +166,8 @@ public final class ProgressionTiers {
 
     public static final TeamSize TEAM_SIZE;
 
+    public static final LabCraftConfig LAB_CRAFT;
+
     public static final PassiveResearchConfig PASSIVE_RESEARCH;
 
     /** One gating (multi-)block/item per age transition - see {@link Gate}. */
@@ -165,14 +188,59 @@ public final class ProgressionTiers {
             CATEGORIES = config.categories();
             TIERS = config.tiers();
             GATES = config.gates() != null ? config.gates() : new Gate[0];
-            TEAM_SIZE = config.teamSize() != null ? config.teamSize() : DEFAULT_TEAM_SIZE;
-            PASSIVE_RESEARCH = config.passiveResearch() != null ? config.passiveResearch() : DEFAULT_PASSIVE_RESEARCH;
+            TEAM_SIZE = validTeamSize(config.teamSize());
+            LAB_CRAFT = validLabCraft(config.labCraft());
+            PASSIVE_RESEARCH = validPassiveResearch(config.passiveResearch());
         } catch (IOException | JsonSyntaxException e) {
             throw new IllegalStateException(
                     "Failed to load " + path + " - this file is the single source of truth for progression "
                             + "tiers/stages/thresholds and must be deployed alongside the mod jar. "
                             + "See config_files/s3_progression_mod/progression.json in the mod repo.", e);
         }
+    }
+
+    /*
+     * Gson fills fields missing from progression.json with 0, so a config still in the 0.8.0
+     * format ("pointsPerPlayer"/"freePlayers", "points"/"playersPerExtraPoint", no "labCraft")
+     * parses fine but would make every threshold 512 and every craft instant - fall back to the
+     * built-in defaults for the missing values instead, and say so in the log.
+     */
+
+    private static TeamSize validTeamSize(@Nullable TeamSize teamSize) {
+        if (teamSize == null) {
+            return DEFAULT_TEAM_SIZE;
+        }
+        if (teamSize.baseThreshold() > 0 && teamSize.curveFactor() > 0 && teamSize.curveExponent() > 0
+                && teamSize.maxPlayers() > 0) {
+            return teamSize;
+        }
+        LOGGER.warn("[s3_progression_mod] progression.json \"teamSize\" lacks baseThreshold/curveFactor/curveExponent/maxPlayers "
+                + "(0.8.0 format?) - using the defaults for those: {}", DEFAULT_TEAM_SIZE);
+        // inactiveAfterDays is kept - it has the same meaning in both formats
+        return new TeamSize(
+                teamSize.baseThreshold() > 0 ? teamSize.baseThreshold() : DEFAULT_TEAM_SIZE.baseThreshold(),
+                teamSize.curveFactor() > 0 ? teamSize.curveFactor() : DEFAULT_TEAM_SIZE.curveFactor(),
+                teamSize.curveExponent() > 0 ? teamSize.curveExponent() : DEFAULT_TEAM_SIZE.curveExponent(),
+                teamSize.maxPlayers() > 0 ? teamSize.maxPlayers() : DEFAULT_TEAM_SIZE.maxPlayers(),
+                teamSize.inactiveAfterDays());
+    }
+
+    private static LabCraftConfig validLabCraft(@Nullable LabCraftConfig labCraft) {
+        if (labCraft != null && labCraft.referenceMinutes() > 0 && labCraft.referenceThreshold() > 0) {
+            return labCraft;
+        }
+        LOGGER.warn("[s3_progression_mod] progression.json has no valid \"labCraft\" block - using {}", DEFAULT_LAB_CRAFT);
+        return DEFAULT_LAB_CRAFT;
+    }
+
+    private static PassiveResearchConfig validPassiveResearch(@Nullable PassiveResearchConfig passiveResearch) {
+        // the 0.8.0 block (no referenceThreshold) meant 1 point every 20 minutes - not kept for T/512 points
+        if (passiveResearch != null && passiveResearch.intervalMinutes() > 0 && passiveResearch.referenceThreshold() > 0) {
+            return passiveResearch;
+        }
+        LOGGER.warn("[s3_progression_mod] progression.json has no valid \"passiveResearch\" block (0.8.0 format?) - using {}",
+                DEFAULT_PASSIVE_RESEARCH);
+        return DEFAULT_PASSIVE_RESEARCH;
     }
 
     /** Raw contents of progression.json, for KubeJS scripts to JSON.parse themselves (see class javadoc). */
@@ -269,14 +337,38 @@ public final class ProgressionTiers {
         return flags;
     }
 
-    /**
-     * @return the points {@code team} needs for its next tier: {@code baseThreshold} for up
-     * to {@code freePlayers} counted members, {@code pointsPerPlayer} more per member beyond
-     * that, at most {@code maxPlayers} counted (512..3200 with the default config).
-     */
+    /** @return the points {@code team} needs for its next tier - see {@link #thresholdForSize}. */
     public static int thresholdFor(Team team) {
-        int counted = Math.min(countedSize(team), TEAM_SIZE.maxPlayers());
-        return TEAM_SIZE.baseThreshold() + TEAM_SIZE.pointsPerPlayer() * Math.max(0, counted - TEAM_SIZE.freePlayers());
+        return thresholdForSize(countedSize(team));
+    }
+
+    /**
+     * @return the threshold for a counted team size {@code counted}:
+     * {@code round(baseThreshold + curveFactor * (c - 1)^curveExponent)} with {@code c} clamped
+     * to 1..{@code maxPlayers} (512..2646 with the default config).
+     */
+    public static int thresholdForSize(int counted) {
+        int c = Math.max(1, Math.min(counted, TEAM_SIZE.maxPlayers()));
+        return (int) Math.round(TEAM_SIZE.baseThreshold() + TEAM_SIZE.curveFactor() * Math.pow(c - 1, TEAM_SIZE.curveExponent()));
+    }
+
+    /**
+     * @return how many ticks one Laboratory craft takes for {@code team}: {@code referenceMinutes}
+     * scaled by {@code referenceThreshold / threshold} (48000 ticks = 40 min for a solo team,
+     * 9288 for 23 players by default) - see {@link LabCraftConfig}.
+     */
+    public static int labCraftTicks(Team team) {
+        return labCraftTicksFor(thresholdFor(team));
+    }
+
+    private static int labCraftTicksFor(int threshold) {
+        double referenceTicks = LAB_CRAFT.referenceMinutes() * 60.0 * 20.0;
+        return (int) Math.max(1, Math.round(referenceTicks * LAB_CRAFT.referenceThreshold() / (double) threshold));
+    }
+
+    /** @return the longest a Laboratory craft can take (at the lowest threshold, a team of one). */
+    public static int maxLabCraftTicks() {
+        return labCraftTicksFor(thresholdForSize(1));
     }
 
     /** @return the number of ACTIVE FTB Teams members (owner, officers, members - not allies or invites; inactive ones see PlayerActivity). */
@@ -462,21 +554,20 @@ public final class ProgressionTiers {
     }
 
     /**
-     * @return the free research points {@code team} gets per interval: {@code points} plus one per
-     * full {@code playersPerExtraPoint} of its counted size (capped at {@code maxPlayers}, the same
-     * size the threshold uses) - 1 / 2 / 3 points for 1-9 / 10-19 / 20-23 players by default.
+     * @return the free research points {@code team} gets per interval: its threshold divided by
+     * {@code referenceThreshold} - 1.00 / 1.31 / 2.00 / 2.97 / 5.17 for 1 / 2 / 5 / 10 / 23 players
+     * by default. Fractions are carried over per team, see {@link #awardPassiveResearch}.
      */
-    public static int passivePointsFor(Team team) {
-        int perExtra = PASSIVE_RESEARCH.playersPerExtraPoint();
-        int counted = Math.min(countedSize(team), TEAM_SIZE.maxPlayers());
-        return PASSIVE_RESEARCH.points() + (perExtra > 0 ? counted / perExtra : 0);
+    public static double passivePointsFor(Team team) {
+        return thresholdFor(team) / (double) PASSIVE_RESEARCH.referenceThreshold();
     }
 
     /**
-     * Adds {@link #passivePointsFor} points to {@code team}'s current research tier if the team
-     * has an active Laboratory that can research that tier (by its recorded
-     * {@link LaboratoryBlock.LabTier}). Never unlocks the tier itself - reaching the threshold this
-     * way unlocks on the team's next Laboratory craft, with the usual messages (user's choice).
+     * Adds {@link #passivePointsFor} to {@code team}'s carried-over fraction and credits the
+     * whole points of it to the team's current research tier, if the team has an active
+     * Laboratory that can research that tier (by its recorded {@link LaboratoryBlock.LabTier}).
+     * Never unlocks the tier itself - reaching the threshold this way unlocks on the team's next
+     * Laboratory craft, with the usual messages (user's choice).
      *
      * @return the points added, 0 if none
      */
@@ -495,8 +586,10 @@ public final class ProgressionTiers {
         if (!labTier.allows(age)) {
             return 0;
         }
-        int points = passivePointsFor(team);
         CompoundTag data = team.getExtraData();
+        double owed = data.getDouble(PASSIVE_FRACTION_KEY) + passivePointsFor(team);
+        int points = (int) Math.floor(owed);
+        data.putDouble(PASSIVE_FRACTION_KEY, owed - points);
         CompoundTag research = data.getCompound(RESEARCH_KEY);
         research.putInt(progress.tierKey(), research.getInt(progress.tierKey()) + points);
         data.put(RESEARCH_KEY, research);

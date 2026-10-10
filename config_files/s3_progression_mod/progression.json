@@ -1,8 +1,9 @@
 {
   "researchKey": "s3_progression_mod:research",
   "categories": ["mining", "farming", "production", "exploration", "challenge"],
-  "teamSize": { "baseThreshold": 512, "pointsPerPlayer": 128, "freePlayers": 2, "maxPlayers": 23, "inactiveAfterDays": 14 },
-  "passiveResearch": { "intervalMinutes": 20, "points": 1, "playersPerExtraPoint": 10 },
+  "teamSize": { "baseThreshold": 512, "curveFactor": 160.3, "curveExponent": 0.8375, "maxPlayers": 23, "inactiveAfterDays": 14 },
+  "labCraft": { "referenceMinutes": 40, "referenceThreshold": 512 },
+  "passiveResearch": { "intervalMinutes": 40, "referenceThreshold": 512 },
   "tiers": [
     { "key": "BRONZE", "displayName": "Bronze Age", "stageId": "bronze_unlocked" },
     { "key": "IRON", "displayName": "Iron Age", "stageId": "iron_unlocked" },

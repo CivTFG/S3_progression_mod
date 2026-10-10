@@ -67,11 +67,13 @@ public class LaboratoryMenu extends AbstractContainerMenu {
         }
     }
 
-    public int getProgress() {
+    /** Remaining time of the running craft in whole seconds (rounded up), 0 if nothing is crafting. */
+    public int getRemainingSeconds() {
         return data.get(0);
     }
 
-    public int getMaxProgress() {
+    /** Total duration of the running craft in seconds (team-size dependent, see ProgressionTiers#labCraftTicks). */
+    public int getCraftSeconds() {
         return data.get(1);
     }
 

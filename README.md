@@ -20,9 +20,13 @@ reach the next one (e.g. completing Bronze unlocks the bloomery needed to make I
   higher-tier one takes over and switches the old one off, placing one of the same or a
   lower tier just gets you a non-functional decorative copy.
 - **Tiers unlock in order** - each tier needs a team-size dependent number of research
-  points (512 for 1-2 players, +128 per further player, max 3200 at 23; a player leaving
-  lowers it by one step per midnight at most; a team with an active laboratory also gets
-  1 free point every 20 minutes of server uptime, +1 per 10 players); reaching it grants
+  points on a bent curve, `round(512 + 160.3 × (c − 1)^0.8375)` for `c` counted players
+  (512 solo, 1024 at 5, 2400 at 20, max 2646 at 23; a player leaving lowers it by one step
+  per midnight at most). Bigger teams craft faster to match: one laboratory craft takes
+  `40 min × 512 / threshold` (40 min solo, about 8.5 min at 20 players), and a team with an
+  active laboratory gets `threshold / 512` free points every 40 minutes of server uptime -
+  so every team size needs about the same time per tier (~20 h with all 5 science types).
+  Reaching the threshold grants
   every online team member a GameStage (e.g. `bronze_unlocked`), and a login-sync keeps
   offline members caught up. A team can't start progressing tier N+1 until tier N is
   unlocked.

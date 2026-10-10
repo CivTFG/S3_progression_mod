@@ -20,7 +20,7 @@ public class LaboratoryScreen extends AbstractContainerScreen<LaboratoryMenu> {
             new ResourceLocation(ProgressionMod.MOD_ID, "textures/gui/laboratory.png");
 
     // Progress bar recess in the background art, directly under the 5 laboratory slots - the
-    // remaining-time countdown is drawn centred on it (a 20-minute craft made the bar itself
+    // remaining-time countdown is drawn centred on it (a craft of up to 40 minutes makes the bar itself
     // too slow to read). Must match the texture and LaboratoryMenu's slot layout.
     private static final int PROGRESS_BAR_X = 45;
     private static final int PROGRESS_BAR_Y = 64;
@@ -54,10 +54,9 @@ public class LaboratoryScreen extends AbstractContainerScreen<LaboratoryMenu> {
         guiGraphics.blit(TEXTURE, x, y, 0.0F, 0.0F, imageWidth, imageHeight, imageWidth, imageHeight);
     }
 
-    /** Remaining craft time as m:ss, rounded up to whole seconds (20 ticks each). */
+    /** Remaining craft time as m:ss (the server already sends it in whole seconds, rounded up). */
     private String countdownText() {
-        int remainingTicks = Math.max(0, menu.getMaxProgress() - menu.getProgress());
-        int seconds = (remainingTicks + 19) / 20;
+        int seconds = Math.max(0, menu.getRemainingSeconds());
         return String.format("%d:%02d", seconds / 60, seconds % 60);
     }
 
@@ -82,7 +81,7 @@ public class LaboratoryScreen extends AbstractContainerScreen<LaboratoryMenu> {
             }
         }
 
-        if (menu.getProgress() > 0) {
+        if (menu.getRemainingSeconds() > 0) {
             // vertically centred on the 6 px recess (font line height is 9)
             guiGraphics.drawCenteredString(font, countdownText(), PROGRESS_BAR_X + PROGRESS_BAR_WIDTH / 2,
                     PROGRESS_BAR_Y + (PROGRESS_BAR_HEIGHT - font.lineHeight) / 2 + 1, COUNTDOWN_COLOR);

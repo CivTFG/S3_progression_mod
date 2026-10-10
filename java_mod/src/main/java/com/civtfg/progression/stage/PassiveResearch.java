@@ -12,8 +12,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Free research for teams with an active Laboratory: every {@code intervalMinutes} of server
- * uptime (progression.json "passiveResearch", default 20 minutes / 1 point, +1 per 10 counted
- * players) each such team gets points on its current tier, if its lab can research that tier - see
+ * uptime (progression.json "passiveResearch", default threshold/512 points every 40 minutes, the
+ * fraction carried over per team) each such team gets points on its current tier, if its lab can research that tier - see
  * {@link ProgressionTiers#passivePointsFor} and {@link ProgressionTiers#awardPassiveResearch}. Measured by the wall clock while the server
  * runs: time the server is offline doesn't count, and a partly elapsed interval is lost on
  * restart. Silent - the tier still only unlocks on the team's next Laboratory craft.

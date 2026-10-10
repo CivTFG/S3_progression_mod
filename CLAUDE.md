@@ -84,11 +84,19 @@ README.md                        user-facing install/build instructions — keep
   1 each). Progress resets if slot contents change mid-craft. On success, fires
   `ProgressionEvent` (a Forge event) which `progression_listener.js` picks up to credit the
   team and grant the GameStage once the tier's threshold is reached.
-- **Team-size dependent threshold** (since 0.8.0, `ProgressionTiers.thresholdFor(team)`): every
-  tier needs `baseThreshold` (512) points for up to `freePlayers` (2) counted members, plus
-  `pointsPerPlayer` (128) per counted member beyond that, at most `maxPlayers` (23) counted -
-  512..3200, all four numbers in progression.json's `"teamSize"` block (defaults built in if
-  it's missing). The **threshold-th point unlocks** (`total >= threshold`; until 0.7.x it was
+- **Team-size dependent threshold** (since 0.8.0, bent curve since 0.9.0,
+  `ProgressionTiers.thresholdFor(team)`/`thresholdForSize(c)`): every tier needs
+  `round(baseThreshold + curveFactor * (c - 1)^curveExponent)` points, `c` = counted size clamped
+  to 1..`maxPlayers` - with 512 / 160.3 / 0.8375 / 23: 512, 672, 798, 1024, 1522, 1974, 2400, 2646
+  for c = 1, 2, 3, 5, 10, 15, 20, 23 (progression.json `"teamSize"`, defaults built in). **Gson
+  gotcha:** a `"teamSize"` block still in the 0.8.0 format (`pointsPerPlayer`/`freePlayers`)
+  parses fine with `curveFactor`/`curveExponent` = 0, which would make every threshold 512 -
+  `validTeamSize` falls back to the defaults for missing values (keeping `inactiveAfterDays`) and
+  logs a warning; same for `"labCraft"`/`"passiveResearch"`. The design goal of 0.9.0 ("patch
+  1.5", design docs `PATCH_1_5_IMPLEMENTATION.md`/`patch_1_5_proposal.pdf` in the repo root
+  if present - not committed): every team size needs the
+  same time per tier, ~20 h with all 5 science types - the threshold, the craft duration and the
+  free points below are tuned together, change them together. The **threshold-th point unlocks** (`total >= threshold`; until 0.7.x it was
   `total > threshold`). Counted size (`countedSize`, team NBT `s3_progression_mod:counted_size`
   + `_day`): members = FTB `Team#getMembers()` (rank >= MEMBER: owner/officers/members, not
   allies/invites) that are **active** (`PlayerActivity`: our own last-seen log in world saved
@@ -106,11 +114,21 @@ README.md                        user-facing install/build instructions — keep
   its totals with the 0.7.x rule (total > 1024). A threshold that drops below a team's total
   (member left) only unlocks on the team's next Laboratory craft (user's choice) -
   `progression_listener.js` calls `tryUnlock` after adding the points.
-- **Passive research** (since 0.8.0, `stage/PassiveResearch`): every `intervalMinutes` (20) of
-  server uptime - wall clock while running, offline time doesn't count, a partial interval is
-  lost on restart - every team with an active Laboratory gets `points` (1) plus one per full
-  `playersPerExtraPoint` (10) of its counted size, capped at `maxPlayers` (so 1/2/3 points for
-  1-9/10-19/20-23 players; `ProgressionTiers.passivePointsFor`) on its current
+- **Laboratory craft duration** (since 0.9.0, `ProgressionTiers.labCraftTicks(team)`):
+  `referenceMinutes` (40) x `referenceThreshold` (512) / threshold, i.e. 48000 ticks solo,
+  24000 at 5 players, 9288 at 23 (progression.json `"labCraft"`). Computed per tick in
+  `LaboratoryBlockEntity#getMatchingScience` (carried in `Match.ticks`), so a threshold change
+  mid-craft applies immediately; saved `Progress` is clamped to `maxLabCraftTicks()`. The
+  `ContainerData` syncs to the client as **shorts** (max 32767 < 48000 ticks), so the GUI gets
+  the remaining time and the total in **seconds** (index 0/1, `LaboratoryMenu#getRemainingSeconds`/
+  `getCraftSeconds`), not ticks - don't switch that back. Until 0.8.0 every craft was a fixed
+  20 minutes (`MAX_PROGRESS`, removed).
+- **Passive research** (since 0.8.0, `stage/PassiveResearch`; amounts changed in 0.9.0): every
+  `intervalMinutes` (40) of server uptime - wall clock while running, offline time doesn't
+  count, a partial interval is lost on restart - every team with an active Laboratory gets
+  threshold / `referenceThreshold` (512) points (1.00 solo, 2.00 at 5, 5.17 at 23;
+  `ProgressionTiers.passivePointsFor`, a double); the fraction is carried per team in team NBT
+  `s3_progression_mod:passive_fraction` and only whole points are credited, on its current
   tier (`ProgressionTiers.awardPassiveResearch`), but only if that lab's `LabTier` allows the
   tier (Steel phase with only a Primitive lab = nothing). The lab tier comes from the team's
   lab record (`"tier"` field, since 0.8.0 - no chunk loading; older records get it the first
@@ -314,8 +332,9 @@ one file at runtime; edit it, not hardcoded copies)
 {
   "researchKey": "s3_progression_mod:research",     // NBT key on team extra data
   "categories": ["mining", "farming", "production", "exploration", "challenge"],
-  "teamSize": { "baseThreshold": 512, "pointsPerPlayer": 128, "freePlayers": 2, "maxPlayers": 23, "inactiveAfterDays": 14 },
-  "passiveResearch": { "intervalMinutes": 20, "points": 1, "playersPerExtraPoint": 10 },
+  "teamSize": { "baseThreshold": 512, "curveFactor": 160.3, "curveExponent": 0.8375, "maxPlayers": 23, "inactiveAfterDays": 14 },
+  "labCraft": { "referenceMinutes": 40, "referenceThreshold": 512 },
+  "passiveResearch": { "intervalMinutes": 40, "referenceThreshold": 512 },
   "tiers": [
     { "key": "BRONZE", "displayName": "Bronze Age", "stageId": "bronze_unlocked" },  // no per-tier threshold since 0.8.0, see "teamSize"
     // ... IRON, STEEL, STEAM, LV, MV, HV, MOON, EV, MARS — MARS is the last tier now, IV

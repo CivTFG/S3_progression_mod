@@ -40,18 +40,14 @@ import java.util.Set;
 public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
     public static final int SLOT_COUNT = 5;
-    /**
-     * Ticks one research craft takes: 20 minutes (20 * 60 * 20). Synced to the client through
-     * {@link ContainerData}, which sends values as shorts - keep this below 32767.
-     */
-    public static final int MAX_PROGRESS = 20 * 60 * 20;
 
     /**
      * What a tier's laboratory craft resolves to once its 5 slots are read: the tier
-     * being progressed and how much its counter advances. Not tied to a fixed recipe -
-     * see {@link #getMatchingScience(Level)}.
+     * being progressed, how much its counter advances and how many ticks the craft takes
+     * for the owning team ({@link ProgressionTiers#labCraftTicks} - 40 min for a solo team,
+     * shorter for bigger teams). Not tied to a fixed recipe - see {@link #getMatchingScience(Level)}.
      */
-    private record Match(String tier, int value) {
+    private record Match(String tier, int value, int ticks) {
     }
 
     private final ItemStackHandler itemHandler = new ItemStackHandler(SLOT_COUNT) {
@@ -70,13 +66,19 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
     @Nullable
     private String currentTier = null;
     private int currentValue = 0;
+    private int currentTicks = 0;
 
+    /**
+     * Synced to the client, which receives every value as a short (max 32767) - a 40-minute
+     * craft is 48000 ticks, so the craft time goes over in SECONDS: index 0 is the remaining
+     * time of the running craft, rounded up (0 = nothing running), index 1 its total duration.
+     */
     private final ContainerData data = new ContainerData() {
         @Override
         public int get(int index) {
             return switch (index) {
-                case 0 -> progress;
-                case 1 -> MAX_PROGRESS;
+                case 0 -> progress > 0 && currentTicks > 0 ? toSyncedSeconds(Math.max(1, currentTicks - progress)) : 0;
+                case 1 -> toSyncedSeconds(currentTicks);
                 case 2 -> tierProgress();
                 case 3 -> tierThreshold();
                 case 4 -> hasTeam() ? 1 : 0;
@@ -86,9 +88,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
         @Override
         public void set(int index, int value) {
-            if (index == 0) {
-                progress = value;
-            }
+            // read-only: the client keeps its own SimpleContainerData copy
         }
 
         @Override
@@ -96,6 +96,11 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
             return 5;
         }
     };
+
+    /** Ticks to whole seconds, rounded up, capped to what a synced short can hold. */
+    private static int toSyncedSeconds(int ticks) {
+        return Math.min(Short.MAX_VALUE, (ticks + 19) / 20);
+    }
 
     /**
      * Research progress toward whichever tier the chunk owning this lab is currently
@@ -186,6 +191,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
                 be.progress = 0;
                 be.currentTier = null;
                 be.currentValue = 0;
+                be.currentTicks = 0;
                 dirty = true;
             }
             if (dirty) {
@@ -196,9 +202,12 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
         be.currentTier = match.get().tier();
         be.currentValue = match.get().value();
+        // re-read every tick: if the team's threshold changes mid-craft (member joins, midnight
+        // decrease), the new duration applies right away
+        be.currentTicks = match.get().ticks();
 
         be.progress++;
-        if (be.progress >= MAX_PROGRESS) {
+        if (be.progress >= be.currentTicks) {
             be.craft(level, pos);
         }
 
@@ -261,7 +270,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
             return Optional.empty();
         }
 
-        return Optional.of(new Match(tierKey, value));
+        return Optional.of(new Match(tierKey, value, ProgressionTiers.labCraftTicks(team)));
     }
 
     private void craft(Level level, BlockPos pos) {
@@ -281,6 +290,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
         progress = 0;
         currentTier = null;
         currentValue = 0;
+        currentTicks = 0;
     }
 
     // ----------------------------------------------------------------
@@ -315,8 +325,9 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     // ----------------------------------------------------------------
-    // Save / load - progress persists too, a 20-minute craft must survive chunk unloads and
-    // the daily server restart (the matching tier/value is recomputed from the slots each tick)
+    // Save / load - progress persists too, a craft of up to 40 minutes must survive chunk unloads
+    // and the daily server restart (the matching tier/value/duration is recomputed from the slots
+    // and the team each tick)
     // ----------------------------------------------------------------
 
     @Override
@@ -332,7 +343,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
         if (tag.contains("Inventory")) {
             itemHandler.deserializeNBT(tag.getCompound("Inventory"));
         }
-        progress = Math.min(tag.getInt("Progress"), MAX_PROGRESS);
+        progress = Math.min(tag.getInt("Progress"), ProgressionTiers.maxLabCraftTicks());
     }
 
     // ----------------------------------------------------------------

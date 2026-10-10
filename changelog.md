@@ -1,5 +1,30 @@
 # Changelog
 
+## S3 Progression 0.9.0
+
+### Research balance
+- **Same time per tier for every team size:** a tier takes about 20 hours with all 5 science types, whether the team has 1 or 23 players. Three changes work together:
+  - **New threshold curve:** the points needed now follow a curve instead of a straight line. The formula is `round(512 + 160.3 × (players − 1)^0.8375)`.
+
+    | Players | 1 | 2 | 3 | 5 | 10 | 15 | 20 | 23 |
+    |---|---|---|---|---|---|---|---|---|
+    | Points needed | 512 | 672 | 798 | 1,024 | 1,522 | 1,974 | 2,400 | 2,646 |
+    | Lab craft time | 40:00 | 30:29 | 25:40 | 20:00 | 13:28 | 10:23 | 8:32 | 7:45 |
+    | Free points / 40 min | 1.00 | 1.31 | 1.56 | 2.00 | 2.97 | 3.86 | 4.69 | 5.17 |
+
+  - **Lab craft time depends on team size:** a solo team's craft takes 40 minutes (was 20 for everyone), and bigger teams craft faster (40 min × 512 / points needed). The lab countdown shows each team's own time.
+  - **Free research scales with the threshold:** every 40 minutes of server uptime (was 20), a team with an active laboratory gets points needed / 512 free points. Fractions carry over to the next interval, so a 2-player team gets 1.31 points per interval on average.
+- Unchanged: points per craft (1, 2, 4, 8, 16 for 1–5 science types), unlock on the next lab craft, permanent unlocks, the team-size rules (inactive players, one step down per midnight) and the lab tier check for free points.
+
+### Admin notes
+- **Upload to the live server:**
+  - `mods/S3_progression_mod-0.9.0.jar` (delete the 0.8.0 jar)
+  - `config/s3_progression_mod/progression.json` (format changed: `teamSize` uses `curveFactor`/`curveExponent` instead of `pointsPerPlayer`/`freePlayers`, the new `labCraft` block, and `passiveResearch` uses `referenceThreshold` instead of `points`/`playersPerExtraPoint`)
+- **Restart the server.** `/reload` isn't enough.
+- An old 0.8.0 `progression.json` still loads: the missing values fall back to the new defaults and the log shows a warning. Your `inactiveAfterDays` setting is kept.
+- **Existing teams:** totals and unlocks stay as they are. Solo teams need the same 512 points, teams of 2–9 players now need more; teams of 10 or more need fewer and unlock on their next lab craft if they are already above the new threshold.
+- **Running lab crafts** keep their progress and finish once they reach the team's new craft time.
+
 ## S3 Progression 0.8.0
 
 ### Research
