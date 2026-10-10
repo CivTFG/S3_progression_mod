@@ -77,7 +77,9 @@ public class LaboratoryScreen extends AbstractContainerScreen<LaboratoryMenu> {
             // nothing left to show progress for.
             int tierThreshold = menu.getTierThreshold();
             if (tierThreshold >= 0) {
-                guiGraphics.drawString(font, "Progress: " + menu.getTierProgress() + " / " + tierThreshold, 8, 29, 0x404040, false);
+                int discount = menu.getTierDiscount();
+                guiGraphics.drawString(font, "Progress: " + menu.getTierProgress() + " / " + tierThreshold
+                        + (discount > 0 ? " (-" + discount + "%)" : ""), 8, 29, 0x404040, false);
             }
         }
 

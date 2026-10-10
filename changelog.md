@@ -12,17 +12,26 @@
     | Lab craft time | 40:00 | 30:29 | 25:40 | 20:00 | 13:28 | 10:23 | 8:32 | 7:45 |
     | Free points / 40 min | 1.00 | 1.31 | 1.56 | 2.00 | 2.97 | 3.86 | 4.69 | 5.17 |
 
-  - **Lab craft time depends on team size:** a solo team's craft takes 40 minutes (was 20 for everyone), and bigger teams craft faster (40 min × 512 / points needed). The lab countdown shows each team's own time.
-  - **Free research scales with the threshold:** every 40 minutes of server uptime (was 20), a team with an active laboratory gets points needed / 512 free points. Fractions carry over to the next interval, so a 2-player team gets 1.31 points per interval on average.
+  - **Lab craft time depends on team size:** a solo team's craft takes 40 minutes (was 20 for everyone), and bigger teams craft faster (40 min × 512 / points needed before discount). The lab countdown shows each team's own time.
+  - **Free research scales with the threshold:** every 40 minutes of server uptime (was 20), a team with an active laboratory gets (points needed before discount) / 512 free points. Fractions carry over to the next interval, so a 2-player team gets 1.31 points per interval on average.
+- **Catch-up discount:** for every other team that has already researched the tier you are working on, you need 10% fewer points, up to 40% at 4 teams. Example: you research the Bronze Age and one team has already reached the Iron Age, so you need 10% fewer points; a second team makes it 20%.
+  - Solo teams and party teams count.
+  - The discount never goes back down, even if a team disbands.
+  - It only lowers the points needed. Lab craft time and free points stay the same, so the discount really makes you faster.
+  - Your team gets a chat message when its discount rises. The lab and `/progression teams` show the discounted requirement and the discount.
+  - If the discount brings your total above the requirement, the tier unlocks with your next lab craft.
 - Unchanged: points per craft (1, 2, 4, 8, 16 for 1–5 science types), unlock on the next lab craft, permanent unlocks, the team-size rules (inactive players, one step down per midnight) and the lab tier check for free points.
 
 ### Admin notes
 - **Upload to the live server:**
   - `mods/S3_progression_mod-0.9.0.jar` (delete the 0.8.0 jar)
-  - `config/s3_progression_mod/progression.json` (format changed: `teamSize` uses `curveFactor`/`curveExponent` instead of `pointsPerPlayer`/`freePlayers`, the new `labCraft` block, and `passiveResearch` uses `referenceThreshold` instead of `points`/`playersPerExtraPoint`)
+  - `config/s3_progression_mod/progression.json` (format changed: `teamSize` uses `curveFactor`/`curveExponent` instead of `pointsPerPlayer`/`freePlayers`, the new `labCraft` and `discount` blocks, and `passiveResearch` uses `referenceThreshold` instead of `points`/`playersPerExtraPoint`)
+  - `kubejs/startup_scripts/s3_progression_mod/progression_listener.js`
+  - `kubejs/server_scripts/s3_progression_mod/progression_commands.js` (shows the discount)
 - **Restart the server.** `/reload` isn't enough.
 - An old 0.8.0 `progression.json` still loads: the missing values fall back to the new defaults and the log shows a warning. Your `inactiveAfterDays` setting is kept.
 - **Existing teams:** totals and unlocks stay as they are. Solo teams need the same 512 points, teams of 2–9 players now need more; teams of 10 or more need fewer and unlock on their next lab craft if they are already above the new threshold.
+- **Discount on day one:** teams that are already behind get their discount right away, counted from the teams that are already ahead.
 - **Running lab crafts** keep their progress and finish once they reach the team's new craft time.
 
 ## S3 Progression 0.8.0

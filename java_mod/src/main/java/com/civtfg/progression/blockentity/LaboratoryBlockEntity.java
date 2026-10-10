@@ -82,6 +82,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
                 case 2 -> tierProgress();
                 case 3 -> tierThreshold();
                 case 4 -> hasTeam() ? 1 : 0;
+                case 5 -> tierDiscount();
                 default -> 0;
             };
         }
@@ -93,7 +94,7 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
 
         @Override
         public int getCount() {
-            return 5;
+            return 6;
         }
     };
 
@@ -127,6 +128,12 @@ public class LaboratoryBlockEntity extends BlockEntity implements MenuProvider {
     private int tierThreshold() {
         ProgressionTiers.Progress teamProgress = currentTeamProgress();
         return teamProgress != null ? teamProgress.threshold() : -1;
+    }
+
+    /** Catch-up discount in percent already included in {@code tierThreshold()} - see ResearchDiscount. */
+    private int tierDiscount() {
+        ProgressionTiers.Progress teamProgress = currentTeamProgress();
+        return teamProgress != null ? teamProgress.discountPercent() : 0;
     }
 
     /**

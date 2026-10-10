@@ -26,7 +26,9 @@ reach the next one (e.g. completing Bronze unlocks the bloomery needed to make I
   `40 min × 512 / threshold` (40 min solo, about 8.5 min at 20 players), and a team with an
   active laboratory gets `threshold / 512` free points every 40 minutes of server uptime -
   so every team size needs about the same time per tier (~20 h with all 5 science types).
-  Reaching the threshold grants
+  Teams that fall behind catch up: for every other team that has already unlocked the tier
+  a team is researching, it needs 10% fewer points, up to -40% (the discount never goes
+  back down). Reaching the threshold grants
   every online team member a GameStage (e.g. `bronze_unlocked`), and a login-sync keeps
   offline members caught up. A team can't start progressing tier N+1 until tier N is
   unlocked.

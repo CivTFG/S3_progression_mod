@@ -194,8 +194,12 @@ ServerEvents.commandRegistry(event => {
                         }
                         const counted = S3ProgressionTiers.countedSize(team)
                         const active = S3ProgressionTiers.memberCount(team)
+                        const progress = S3ProgressionTiers.currentProgress(team)
+                        const needed = progress
+                            ? `, ${progress.threshold()} needed for ${progress.displayName()}${progress.discountPercent() > 0 ? ` after -${progress.discountPercent()}% discount` : ''}`
+                            : ''
                         ctx.source.sendSystemMessage(Component.gold(
-                            `${team.getName().getString()}: ${team.getMembers().size()} members, ${active} active, ${counted} counted for the threshold (${S3ProgressionTiers.thresholdFor(team)} points)`))
+                            `${team.getName().getString()}: ${team.getMembers().size()} members, ${active} active, ${counted} counted for the threshold (${S3ProgressionTiers.thresholdFor(team)} points${needed})`))
                         S3PlayerActivity.describeMembers(team).forEach(line => ctx.source.sendSystemMessage(Component.literal(`  ${line}`)))
                         return 1
                     })
@@ -224,8 +228,10 @@ ServerEvents.commandRegistry(event => {
                         const counted = S3ProgressionTiers.countedSize(team)
                         const inactive = S3PlayerActivity.inactiveCount(team)
                         const inactiveText = inactive > 0 ? `, ${inactive} inactive` : ''
+                        // threshold() already includes the catch-up discount (ResearchDiscount)
+                        const discountText = progress && progress.discountPercent() > 0 ? ` -${progress.discountPercent()}%` : ''
                         const currentTierName = progress
-                            ? `${progress.displayName()} (${progress.current()} / ${progress.threshold()} points, ${counted} players counted${inactiveText})`
+                            ? `${progress.displayName()} (${progress.current()} / ${progress.threshold()} points${discountText}, ${counted} players counted${inactiveText})`
                             : 'Everything (fully researched)'
                         // team.getName() is a Component (FTB Teams renders it as a
                         // clickable/colored link), not a plain string - .getString()

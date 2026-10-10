@@ -24,7 +24,7 @@ public class LaboratoryMenu extends AbstractContainerMenu {
 
     /** Client-side constructor, invoked via the registered MenuType factory. */
     public LaboratoryMenu(int containerId, Inventory playerInventory, BlockPos pos) {
-        this(containerId, playerInventory, resolveBlockEntity(playerInventory, pos), new SimpleContainerData(5));
+        this(containerId, playerInventory, resolveBlockEntity(playerInventory, pos), new SimpleContainerData(6));
     }
 
     /** Server-side constructor, invoked from LaboratoryBlockEntity#createMenu. */
@@ -85,6 +85,11 @@ public class LaboratoryMenu extends AbstractContainerMenu {
     /** That tier's unlock threshold, or -1 if every tier is already unlocked (or the chunk is unclaimed). */
     public int getTierThreshold() {
         return data.get(3);
+    }
+
+    /** Catch-up discount in percent, already included in {@link #getTierThreshold()} (0 = none). */
+    public int getTierDiscount() {
+        return data.get(5);
     }
 
     /** Whether this lab's chunk is claimed by a team at all - see LaboratoryBlockEntity#hasTeam. */

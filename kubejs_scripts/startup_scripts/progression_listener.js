@@ -1,7 +1,7 @@
 // Listens for the custom Forge event fired by LaboratoryBlockEntity#craft, attributes
 // the crafted value to the FTB Team that claims the chunk the laboratory sits in, and
 // unlocks a tier's game stage once that tier's running total reaches the team's threshold
-// (team-size dependent, see ProgressionTiers.thresholdFor).
+// (team-size dependent, minus a discount for teams ahead - see ProgressionTiers.requiredPoints).
 //
 // Tiers must be unlocked in order (Bronze -> Iron -> Steel -> Steam -> LV -> HV -> EV ->
 // IV) - but that ordering is enforced in Java (LaboratoryBlockEntity refuses to
@@ -62,10 +62,11 @@ ForgeEvents.onEvent('com.civtfg.progression.event.ProgressionEvent', event => {
 
     console.info(`[s3_progression_mod] Team ${team.getId()} ${tier} research total: ${total} (+${value})`)
 
-    // The threshold depends on the team's counted size (ProgressionTiers.thresholdFor), and
-    // the threshold-th point unlocks (total >= threshold). tryUnlock stores the unlock flag
-    // and returns true only on the craft that unlocks it, so stages/broadcast happen once.
-    // A threshold that dropped below the total (a member left) is picked up here, i.e. on
+    // The points needed depend on the team's counted size (ProgressionTiers.thresholdFor) minus
+    // the catch-up discount for teams ahead (ProgressionTiers.requiredPoints), and the last
+    // needed point unlocks (total >= needed). tryUnlock stores the unlock flag and returns true
+    // only on the craft that unlocks it, so stages/broadcast happen once. A requirement that
+    // dropped below the total (a member left, the discount rose) is picked up here, i.e. on
     // the team's next craft - by design.
     const ProgressionTiers = Java.loadClass('com.civtfg.progression.stage.ProgressionTiers')
     if (!ProgressionTiers.tryUnlock(team, tier)) return

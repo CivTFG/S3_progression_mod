@@ -123,6 +123,22 @@ README.md                        user-facing install/build instructions — keep
   the remaining time and the total in **seconds** (index 0/1, `LaboratoryMenu#getRemainingSeconds`/
   `getCraftSeconds`), not ticks - don't switch that back. Until 0.8.0 every craft was a fixed
   20 minutes (`MAX_PROGRESS`, removed).
+- **Catch-up discount** (since 0.9.0, `stage/ResearchDiscount`): the points actually needed for a
+  tier are `ProgressionTiers.requiredPoints(team, tier)` = `thresholdFor(team)` minus
+  `percentPerTeam` (10) % per OTHER team that already unlocked that tier, at most `maxPercent`
+  (40) %, rounded up (progression.json `"discount"`, defaults built in). Counted: party teams and
+  solo teams, but not server teams and not the dormant solo team of a player who is in a party
+  now (`getTeamForPlayerID(owner)` isn't that solo team - FTB Teams keeps it around). **Never
+  sinks** (user's choice): the highest count per team and tier is stored in team NBT
+  `s3_progression_mod:discount_teams`, so disbanded/reset teams don't take it back. **Only the
+  points needed** shrink - `thresholdFor` (lab craft time, free points) stays undiscounted, since
+  craft time ~ 1/threshold would otherwise cancel the discount out exactly. `tryUnlock`,
+  `currentProgress` (GUI, `/progression teams`) use the discounted value; `Progress` carries
+  `discountPercent`, the Laboratory GUI shows it via `ContainerData` index 5. `setUnlocked` (a new
+  unlock) schedules a refresh on the next server tick - after the listener's broadcast - that
+  stores every team's new count for its current tier and tells online members of teams whose
+  discount rose ("Other teams are ahead: researching X is now 20% cheaper"). A higher discount
+  unlocks on the team's next Laboratory craft, like a member leaving.
 - **Passive research** (since 0.8.0, `stage/PassiveResearch`; amounts changed in 0.9.0): every
   `intervalMinutes` (40) of server uptime - wall clock while running, offline time doesn't
   count, a partial interval is lost on restart - every team with an active Laboratory gets
@@ -153,7 +169,7 @@ README.md                        user-facing install/build instructions — keep
   context without checking.
 - **`/progression teams`** (in `progression_commands.js`) lists every FTB Team whose
   current tier isn't Bronze - i.e. has unlocked at least one tier
-  (`ProgressionTiers.isUnlocked(team, 'BRONZE')`) - with its current tier, points / threshold
+  (`ProgressionTiers.isUnlocked(team, 'BRONZE')`) - with its current tier, points / points needed (and discount)
   and counted team size plus inactive members (`ProgressionTiers.currentProgress(team)`/
   `countedSize`, `PlayerActivity.inactiveCount`, or "Everything (fully researched)" once every
   tier is done). Teams still in Bronze are deliberately omitted, not listed as "Bronze Age".
@@ -335,6 +351,7 @@ one file at runtime; edit it, not hardcoded copies)
   "teamSize": { "baseThreshold": 512, "curveFactor": 160.3, "curveExponent": 0.8375, "maxPlayers": 23, "inactiveAfterDays": 14 },
   "labCraft": { "referenceMinutes": 40, "referenceThreshold": 512 },
   "passiveResearch": { "intervalMinutes": 40, "referenceThreshold": 512 },
+  "discount": { "percentPerTeam": 10, "maxPercent": 40 },
   "tiers": [
     { "key": "BRONZE", "displayName": "Bronze Age", "stageId": "bronze_unlocked" },  // no per-tier threshold since 0.8.0, see "teamSize"
     // ... IRON, STEEL, STEAM, LV, MV, HV, MOON, EV, MARS — MARS is the last tier now, IV

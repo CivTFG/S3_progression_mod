@@ -88,8 +88,18 @@ public final class ProgressionTiers {
     public record PassiveResearchConfig(int intervalMinutes, int referenceThreshold) {
     }
 
-    /** The tier a team is actively accumulating research toward, and how far along it is. */
-    public record Progress(String tierKey, String displayName, int current, int threshold) {
+    /**
+     * progression.json's "discount" block: {@code percentPerTeam} percent off a tier's threshold
+     * per other team that already unlocked it, at most {@code maxPercent} - see {@link ResearchDiscount}.
+     */
+    public record DiscountConfig(int percentPerTeam, int maxPercent) {
+    }
+
+    /**
+     * The tier a team is actively accumulating research toward, and how far along it is -
+     * {@code threshold} is the points needed after the {@code discountPercent} catch-up discount.
+     */
+    public record Progress(String tierKey, String displayName, int current, int threshold, int discountPercent) {
     }
 
     /**
@@ -105,7 +115,7 @@ public final class ProgressionTiers {
     }
 
     private record Config(String researchKey, String[] categories, Tier[] tiers, Gate[] gates, TeamSize teamSize,
-                          LabCraftConfig labCraft, PassiveResearchConfig passiveResearch) {
+                          LabCraftConfig labCraft, PassiveResearchConfig passiveResearch, DiscountConfig discount) {
     }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ProgressionTiers.class);
@@ -115,6 +125,9 @@ public final class ProgressionTiers {
 
     /** Used when progression.json has no (valid) "labCraft" block: 40 minutes at a threshold of 512. */
     private static final LabCraftConfig DEFAULT_LAB_CRAFT = new LabCraftConfig(40, 512);
+
+    /** Used when progression.json has no "discount" block: -10% per team ahead, at most -40%. */
+    private static final DiscountConfig DEFAULT_DISCOUNT = new DiscountConfig(10, 40);
 
     /** Used when progression.json has no "teamSize" block: 512 + 160.3 x (c - 1)^0.8375, up to 23 players (2646). */
     private static final TeamSize DEFAULT_TEAM_SIZE = new TeamSize(512, 160.3, 0.8375, 23, 14);
@@ -170,6 +183,8 @@ public final class ProgressionTiers {
 
     public static final PassiveResearchConfig PASSIVE_RESEARCH;
 
+    public static final DiscountConfig DISCOUNT;
+
     /** One gating (multi-)block/item per age transition - see {@link Gate}. */
     public static final Gate[] GATES;
 
@@ -191,6 +206,7 @@ public final class ProgressionTiers {
             TEAM_SIZE = validTeamSize(config.teamSize());
             LAB_CRAFT = validLabCraft(config.labCraft());
             PASSIVE_RESEARCH = validPassiveResearch(config.passiveResearch());
+            DISCOUNT = config.discount() != null ? config.discount() : DEFAULT_DISCOUNT;
         } catch (IOException | JsonSyntaxException e) {
             throw new IllegalStateException(
                     "Failed to load " + path + " - this file is the single source of truth for progression "
@@ -294,16 +310,21 @@ public final class ProgressionTiers {
     /** Sets or clears {@code team}'s unlock flag for {@code tierKey} (stages are synced separately). */
     public static void setUnlocked(Team team, String tierKey, boolean unlocked) {
         CompoundTag flags = unlockedFlags(team);
+        if (unlocked && !flags.getBoolean(tierKey)) {
+            // other teams researching this tier may get a bigger discount now
+            ResearchDiscount.scheduleRefresh();
+        }
         flags.putBoolean(tierKey, unlocked);
         team.getExtraData().put(UNLOCKED_KEY, flags);
         team.markDirty();
     }
 
     /**
-     * Unlocks {@code tierKey} if {@code team}'s research total has reached its current
-     * threshold (the threshold-th point unlocks it, not the one after) - called after a
-     * Laboratory craft added points (progression_listener.js), so a threshold that dropped
-     * below the total (a member left) only takes effect on the team's next craft.
+     * Unlocks {@code tierKey} if {@code team}'s research total has reached the points it needs
+     * ({@link #requiredPoints}, the threshold-th point unlocks it, not the one after) - called
+     * after a Laboratory craft added points (progression_listener.js), so a threshold that
+     * dropped below the total (a member left, the discount rose) only takes effect on the
+     * team's next craft.
      *
      * @return {@code true} only if the tier was unlocked by this call
      */
@@ -311,7 +332,7 @@ public final class ProgressionTiers {
         if (find(tierKey) == null || isUnlocked(team, tierKey)) {
             return false;
         }
-        if (team.getExtraData().getCompound(RESEARCH_KEY).getInt(tierKey) < thresholdFor(team)) {
+        if (team.getExtraData().getCompound(RESEARCH_KEY).getInt(tierKey) < requiredPoints(team, tierKey)) {
             return false;
         }
         setUnlocked(team, tierKey, true);
@@ -337,7 +358,11 @@ public final class ProgressionTiers {
         return flags;
     }
 
-    /** @return the points {@code team} needs for its next tier - see {@link #thresholdForSize}. */
+    /**
+     * @return {@code team}'s threshold WITHOUT the catch-up discount - see {@link #thresholdForSize}.
+     * The lab craft time and the free points are based on this value; the points actually needed
+     * to unlock a tier are {@link #requiredPoints}.
+     */
     public static int thresholdFor(Team team) {
         return thresholdForSize(countedSize(team));
     }
@@ -350,6 +375,18 @@ public final class ProgressionTiers {
     public static int thresholdForSize(int counted) {
         int c = Math.max(1, Math.min(counted, TEAM_SIZE.maxPlayers()));
         return (int) Math.round(TEAM_SIZE.baseThreshold() + TEAM_SIZE.curveFactor() * Math.pow(c - 1, TEAM_SIZE.curveExponent()));
+    }
+
+    /**
+     * @return the points {@code team} needs to unlock {@code tierKey}: {@link #thresholdFor} minus
+     * the catch-up discount ({@link ResearchDiscount#percentFor}), rounded up.
+     */
+    public static int requiredPoints(Team team, String tierKey) {
+        return discounted(thresholdFor(team), ResearchDiscount.percentFor(team, tierKey));
+    }
+
+    private static int discounted(int threshold, int percent) {
+        return (threshold * (100 - percent) + 99) / 100;
     }
 
     /**
@@ -604,10 +641,22 @@ public final class ProgressionTiers {
      */
     @Nullable
     public static Progress currentProgress(Team team) {
+        Tier tier = currentTier(team);
+        if (tier == null) {
+            return null;
+        }
         CompoundTag research = team.getExtraData().getCompound(RESEARCH_KEY);
+        int percent = ResearchDiscount.percentFor(team, tier.key());
+        return new Progress(tier.key(), tier.displayName(), research.getInt(tier.key()),
+                discounted(thresholdFor(team), percent), percent);
+    }
+
+    /** @return the first tier {@code team} hasn't unlocked yet (the one it researches), or {@code null} once all are. */
+    @Nullable
+    public static Tier currentTier(Team team) {
         for (Tier tier : TIERS) {
             if (!isUnlocked(team, tier.key())) {
-                return new Progress(tier.key(), tier.displayName(), research.getInt(tier.key()), thresholdFor(team));
+                return tier;
             }
         }
         return null;

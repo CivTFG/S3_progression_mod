@@ -4,6 +4,7 @@
   "teamSize": { "baseThreshold": 512, "curveFactor": 160.3, "curveExponent": 0.8375, "maxPlayers": 23, "inactiveAfterDays": 14 },
   "labCraft": { "referenceMinutes": 40, "referenceThreshold": 512 },
   "passiveResearch": { "intervalMinutes": 40, "referenceThreshold": 512 },
+  "discount": { "percentPerTeam": 10, "maxPercent": 40 },
   "tiers": [
     { "key": "BRONZE", "displayName": "Bronze Age", "stageId": "bronze_unlocked" },
     { "key": "IRON", "displayName": "Iron Age", "stageId": "iron_unlocked" },
