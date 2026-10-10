@@ -22,7 +22,11 @@
   - If the discount brings your total above the requirement, the tier unlocks with your next lab craft.
 - Unchanged: points per craft (1, 2, 4, 8, 16 for 1–5 science types), unlock on the next lab craft, permanent unlocks, the team-size rules (inactive players, one step down per midnight) and the lab tier check for free points.
 
+### Version check
+- **Client and server must have the same mod version (x.y):** players with an older or newer version can't join and see `s3_progression_mod` in the list of mismatched mods. Fix versions (e.g. 0.9.0 and 0.9.1) can still play together. Before, any version could join, and with 0.9.0 an old client would show a wrong lab countdown.
+
 ### Admin notes
+- **Players need the 0.9.0 client pack** - 0.8.0 clients can't join anymore.
 - **Upload to the live server:**
   - `mods/S3_progression_mod-0.9.0.jar` (delete the 0.8.0 jar)
   - `config/s3_progression_mod/progression.json` (format changed: `teamSize` uses `curveFactor`/`curveExponent` instead of `pointsPerPlayer`/`freePlayers`, the new `labCraft` and `discount` blocks, and `passiveResearch` uses `referenceThreshold` instead of `points`/`playersPerExtraPoint`)

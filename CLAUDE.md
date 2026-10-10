@@ -191,6 +191,16 @@ README.md                        user-facing install/build instructions — keep
   Decorative labs placed meanwhile stay out of order; they must be broken and re-placed.
   The team argument is `GREEDY_STRING` (last argument; '#' in party short names works
   unquoted, trailing console whitespace is trimmed by `findTeam`).
+- **Client/server version check** (since 0.9.0, `network/ModNetwork`, registered from the mod
+  constructor): an otherwise unused `SimpleChannel` `s3_progression_mod:main` whose protocol
+  version is the mod's **major.minor** (0.9.0 -> "0.9"), accepted only on an exact match - Forge
+  refuses a client with a different x.y, or without the channel (no mod, or <= 0.8.x). Fix
+  versions (z) stay compatible (user's choice), so **bump y, not z, whenever anything
+  client-visible changes** (GUI `ContainerData` layout, blocks/items, client-side gate checks) -
+  0.9.0 itself changed the lab `ContainerData` (seconds instead of ticks, 6 values), which an
+  0.8.0 client misreads. The server-list `DisplayTest` is overridden with the same x.y (mods.toml's
+  default MATCH_VERSION compares the full version). Before 0.9.0 nothing checked versions at all;
+  only a registry mismatch (missing blocks/items) got a client kicked.
 - **Command permissions**: `/progression`'s subcommands originally had no `.requires(...)`
   at all - every one defaulted to Brigadier's level 0 (any survival player), which made the
   old `reset` (strip a tier from the whole team, no confirmation) a real grief vector.

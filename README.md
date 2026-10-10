@@ -42,6 +42,8 @@ reach the next one (e.g. completing Bronze unlocks the bloomery needed to make I
   `gtceu_voltage_interaction`, locks out an entire GTCEU voltage tier's worth of machines at
   once (e.g. every LV machine) by checking each right-clicked block's own GTCEU tier
   directly, instead of listing individual block ids - see `CLAUDE.md` for how.
+- **Version check** - client and server need the same mod version (major.minor, e.g. 0.9.x),
+  otherwise Forge refuses the connection; fix versions stay compatible.
 - **Single source of truth** - `config/s3_progression_mod/progression.json` defines tier
   order, the team-size threshold formula, gamestage ids, and the gated-machine list. Both the Java mod and
   every KubeJS script read this one file at runtime; rebalancing tiers/thresholds/gates
